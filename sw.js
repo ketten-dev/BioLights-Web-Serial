@@ -3,10 +3,10 @@ const CACHE_NAME = 'biolights-cache-v1';
 
 // De lijst met bestanden die ALTIJD offline beschikbaar moeten zijn
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/favicon.svg',
+  './',
+  'index.html',
+  'manifest.json',
+  'favicon.svg',
   'https://cdn.tailwindcss.com',
   'https://cdn.jsdelivr.net/npm/chart.js'
 ];
