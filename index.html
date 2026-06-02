@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BioLights PWM Controller</title>
+    <title>BioLights Web Serial</title>
 	<link rel="manifest" href="manifest.json">
 	<meta name="theme-color" content="#1e293b">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -15,13 +15,13 @@
     <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         <div id="serialWarning" class="hidden bg-red-600 text-white p-4 md:p-6 rounded-lg shadow lg:col-span-3">
-            <h3 class="font-bold text-lg mb-2">⚠️ Web Serial API niet ondersteund</h3>
-            <p class="text-sm">
-                Je huidige browser of besturingssysteem (zoals iOS/Safari of Firefox) blokkeert directe hardwarecommunicatie via USB. Gebruik Chrome, Edge of Opera op een desktop of Android-apparaat voor live-synchronisatie.<br><br>
-                <strong class="font-bold border-b border-red-400 pb-1">Fallback Methode:</strong><br>
-                Je kunt de interface hieronder nog steeds gebruiken om je lichtreceptuur te ontwerpen. Gebruik de <strong>Opslaan</strong> knop om de configuratie als <code>.json</code> bestand te downloaden en plaats deze handmatig via USB-massaopslag op de controller.
-            </p>
-        </div>
+   			 <h3 class="font-bold text-lg mb-2">⚠️ Web Serial API niet ondersteund</h3>
+    		<p class="text-sm">
+        		Je huidige browser of besturingssysteem (zoals iOS/Safari of een mobiele browser) blokkeert directe hardwarecommunicatie via USB. Gebruik Chrome, Edge, Opera of Firefox op een **desktop** voor live-synchronisatie.<br><br>
+        		<strong class="font-bold border-b border-red-400 pb-1">Fallback Methode:</strong><br>
+        		Je kunt de interface hieronder nog steeds gebruiken om je lichtreceptuur te ontwerpen. Gebruik de <strong>Opslaan</strong> knop om de configuratie als <code>.json</code> bestand te downloaden en plaats deze handmatig via USB-massaopslag op de controller.
+    		</p>
+	</div>
 
         <div class="bg-white p-6 rounded-lg shadow lg:col-span-3 flex justify-between items-center flex-wrap gap-4">
             <h2 class="text-xl font-bold">BioLights Web Serial</h2>
