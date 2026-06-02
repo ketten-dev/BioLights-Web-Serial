@@ -1,0 +1,60 @@
+<svg 
+  width="800" height="300" viewBox="0 0 800 300" 
+  xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  
+  <style>
+    :root {
+      --side-opacity: 0.6;
+      --stroke-color: silver;
+    }
+    .zij-schakel { opacity: var(--side-opacity); }
+    .pinda-lijn { stroke: var(--stroke-color); stroke-width: 4.5; fill: none; }
+    .pinda-pin { stroke: var(--stroke-color); stroke-width: 5; fill: none; }
+    .pinda-oog { fill: var(--stroke-color); }
+  </style>
+
+  <defs>
+    <!-- 1. De Basisvorm -->
+    <g id="pindaShape">
+      <path class="pinda-lijn" d="M 30,15 A 35,35 0 1,0 30,85 C 50,85 55,70 75,70 C 95,70 100,85 120,85 A 35,35 0 1,0 120,15 C 100,15 95,30 75,30 C 55,30 50,15 30,15 Z" />
+      <circle class="pinda-pin" cx="30" cy="50" r="16" />
+      <circle class="pinda-oog" cx="30" cy="50" r="7" />
+      <circle class="pinda-pin" cx="120" cy="50" r="16" />
+      <circle class="pinda-oog" cx="120" cy="50" r="7" />
+    </g>
+
+    <!-- 2. Het Masker -->
+    <linearGradient id="fadeGrad" x1="100%" y1="0" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="white" stop-opacity="1" />
+      <stop offset="50%" stop-color="white" stop-opacity="1" />
+      <stop offset="85%" stop-color="white" stop-opacity="0" />
+    </linearGradient>
+    <mask id="sideMask"><rect x="-50" y="-50" width="250" height="200" fill="url(#fadeGrad)" /></mask>
+
+    <!-- 3. De Zij-unit (Vorm + Masker) -->
+    <g id="sideUnit" class="zij-schakel" mask="url(#sideMask)">
+      <use href="#pindaShape" />
+    </g>
+
+    <!-- 4. De GEPLAATSTE Zij-unit (Translatie + Schaal) -->
+    <!-- Hier definiëren we de -66, 10 en scale(0.8) éénmalig -->
+    <g id="placedSideUnit" transform="translate(-66, 10) scale(0.8)">
+      <use href="#sideUnit" />
+    </g>
+  </defs>
+
+  <!-- 5. De Compositie -->
+  <g transform="translate(400, 150) scale(1.6) translate(-75, -50)">
+    
+    <!-- LINKS: Alleen de geplaatste unit oproepen -->
+    <use href="#placedSideUnit" />
+
+    <!-- RECHTS: Dezelfde unit oproepen, maar 180 graden gedraaid om het midden van de hoofdpinda -->
+    <g transform="rotate(180, 75, 50)">
+      <use href="#placedSideUnit" />
+    </g>
+
+    <!-- HOOFDPINDA -->
+    <use href="#pindaShape" />
+  </g>
+</svg>
