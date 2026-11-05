@@ -1,0 +1,21 @@
+# Firmware BRONcode en build-tussenmap horen niet in de webdeploy.
+# pwm_controller.uf2 (root) juist WEL laten staan — de site's eigen
+# "Download .uf2"-knop (index.html) serveert dat bestand direct.
+main.cpp
+sensor_*.cpp
+sensor_*.h
+drivers/
+CMakeLists.txt
+pico_sdk_import.cmake
+build/
+
+# Alleen relevant voor lokale ontwikkeling/tests, niet voor de gehoste site
+tests/
+dev-server.js
+package.json
+package-lock.json
+docs/
+.superpowers/
+.worktrees/
+.vscode/
+llms.txt

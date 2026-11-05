@@ -1,0 +1,10 @@
+# BioLights Web Controller - a product of Ketten (https://www.ketten.nl)
+# This site is a configuration and firmware-flashing dashboard for the BioLights
+# horticultural LED PWM controller. All content is provided "as is", without
+# warranty of any kind, and no rights can be derived from it. The source code
+# of this site and its firmware may be freely used.
+#
+# See /llms.txt for a longer, AI-oriented description of this site.
+
+User-agent: *
+Allow: /

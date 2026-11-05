@@ -1,0 +1,31 @@
+{
+  "sensor_name": "AS7341 (mock)",
+  "bands": [
+    {"label": "F1", "wavelength_nm": 415, "fwhm_nm": 26},
+    {"label": "F2", "wavelength_nm": 445, "fwhm_nm": 30},
+    {"label": "F3", "wavelength_nm": 480, "fwhm_nm": 36},
+    {"label": "F4", "wavelength_nm": 515, "fwhm_nm": 39},
+    {"label": "F5", "wavelength_nm": 555, "fwhm_nm": 39},
+    {"label": "F6", "wavelength_nm": 590, "fwhm_nm": 40},
+    {"label": "F7", "wavelength_nm": 630, "fwhm_nm": 50},
+    {"label": "F8", "wavelength_nm": 680, "fwhm_nm": 52},
+    {"label": "Clear", "wavelength_nm": null, "fwhm_nm": null},
+    {"label": "NIR", "wavelength_nm": 910, "fwhm_nm": 60},
+    {"label": "Flicker", "wavelength_nm": null, "fwhm_nm": null}
+  ],
+  "settings": [
+    {"key": "gain", "type": "enum", "options": [0.5, 1, 2, 4, 8, 16, 32, 64, 128, 256, 512], "value": 8},
+    {"key": "integration_time_ms", "type": "number", "min": 1, "max": 1000, "step": 1, "value": 50},
+    {"key": "led_enabled", "type": "enum", "options": [0, 1], "value": 0},
+    {"key": "led_current_ma", "type": "number", "min": 4, "max": 258, "step": 2, "value": 12}
+  ],
+  "timeline": [
+    {"time_mins": 0,    "values": [0, 0, 0, 0, 0, 0, 0, 0, 0.01, 0.02, 0]},
+    {"time_mins": 360,  "values": [0.02, 0.05, 0.1, 0.15, 0.2, 0.15, 0.1, 0.05, 0.2, 0.05, 0]},
+    {"time_mins": 480,  "values": [0.05, 0.1, 0.2, 0.3, 0.4, 0.3, 0.2, 0.1, 0.4, 0.1, 0]},
+    {"time_mins": 720,  "values": [0.1, 0.2, 0.35, 0.5, 0.6, 0.45, 0.3, 0.15, 0.6, 0.15, 0]},
+    {"time_mins": 960,  "values": [0.05, 0.1, 0.2, 0.3, 0.4, 0.3, 0.2, 0.1, 0.4, 0.1, 0]},
+    {"time_mins": 1200, "values": [0.01, 0.02, 0.05, 0.08, 0.1, 0.08, 0.05, 0.02, 0.1, 0.02, 0]},
+    {"time_mins": 1380, "values": [0, 0, 0, 0, 0, 0, 0, 0, 0.01, 0.02, 0]}
+  ]
+}

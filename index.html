@@ -1,62 +1,82 @@
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BioLights Web Serial</title>
-	<link rel="manifest" href="manifest.json">
+    <title>BioLights PWM Controller</title>
+    <meta name="description" content="BioLights web configurator: design 24-hour PWM light schedules and flash firmware for the BioLights horticultural LED controller, a product of Ketten (www.ketten.nl), over USB.">
+    <!--
+      BioLights Web Controller - a product and web app by Ketten (https://www.ketten.nl).
+      This page configures and flashes a BioLights horticultural LED PWM controller over USB (Web Serial API).
+      Disclaimer: all content on this site is provided "as is", without warranty of any kind, and no rights
+      can be derived from it. The source code of this site and its firmware may be freely used.
+      See /llms.txt for a longer, AI-oriented description, and /robots.txt for crawler rules.
+    -->
+	<link rel="manifest" href="/manifest.json">
 	<meta name="theme-color" content="#1e293b">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 	<link rel="icon" type="image/svg" href="favicon.svg">
 </head>
-<body class="bg-gray-900 text-gray-800 p-2 md:p-6 font-sans">
+<body class="bg-gray-100 text-gray-800 p-2 md:p-6 font-sans">
     
     <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         <div id="serialWarning" class="hidden bg-red-600 text-white p-4 md:p-6 rounded-lg shadow lg:col-span-3">
-   			 <h3 class="font-bold text-lg mb-2">⚠️ Web Serial API niet ondersteund</h3>
-    		<p class="text-sm">
-        		Je huidige browser of besturingssysteem (zoals iOS/Safari of een mobiele browser) blokkeert directe hardwarecommunicatie via USB. Gebruik Chrome, Edge, Opera of Firefox op een **desktop** voor live-synchronisatie.<br><br>
-        		<strong class="font-bold border-b border-red-400 pb-1">Fallback Methode:</strong><br>
-        		Je kunt de interface hieronder nog steeds gebruiken om je lichtreceptuur te ontwerpen. Gebruik de <strong>Opslaan</strong> knop om de configuratie als <code>.json</code> bestand te downloaden en plaats deze handmatig via USB-massaopslag op de controller.
-    		</p>
-	</div>
+            <h3 class="font-bold text-lg mb-2">⚠️ Web Serial API not supported</h3>
+            <p class="text-sm">
+                Your current browser or operating system (such as iOS/Safari or Firefox) blocks direct USB hardware communication. Use Chrome, Edge, or Opera on a desktop or Android device for live synchronization.<br><br>
+                <strong class="font-bold border-b border-red-400 pb-1">Fallback method:</strong><br>
+                You can still use the interface below to design your light recipe. Use the <strong>Save</strong> button to download the configuration as a <code>.json</code> file and place it manually via USB mass storage on the controller.
+            </p>
+        </div>
 
         <div class="bg-white p-6 rounded-lg shadow lg:col-span-3 flex justify-between items-center flex-wrap gap-4">
             <h2 class="text-xl font-bold">BioLights Web Serial</h2>
             <div class="flex gap-2 flex-wrap items-center">
                 <div class="bg-slate-800 text-white px-4 py-2 rounded text-sm flex items-center gap-2">
-                    <span>Systeemtijd:</span>
+                    <span>System time:</span>
                     <span id="picoTimeDisplay" class="text-amber-400 font-bold">--:--</span>
+                    <button id="btnResetTime" type="button" title="Reset the timeline to system time (does not write to the hardware)" class="text-slate-300 hover:text-white transition-colors text-base leading-none">↻</button>
                 </div>
                 <a href="pwm_controller.uf2" download class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 text-sm font-medium no-underline">Download .uf2</a>
             </div>
         </div>
 
         <div class="bg-white p-4 rounded-lg shadow lg:col-span-3 flex gap-4 flex-wrap">
-            <button id="btnConnectSerial" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 font-medium text-sm transition-colors duration-300">Verbind via Serial</button>
-            <button id="btnSaveConfig" class="bg-slate-600 text-white px-4 py-2 rounded hover:bg-slate-700 font-medium text-sm transition-colors duration-300">Opslaan</button>
-            <button id="btnLoadConfig" class="bg-slate-600 text-white px-4 py-2 rounded hover:bg-slate-700 font-medium text-sm transition-colors duration-300">Laden</button>
+            <button id="btnConnectSerial" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 font-medium text-sm transition-colors duration-300">Connect via Serial</button>
+            <button id="btnSaveConfig" class="bg-slate-600 text-white px-4 py-2 rounded hover:bg-slate-700 font-medium text-sm transition-colors duration-300">Save</button>
+            <button id="btnLoadConfig" class="bg-slate-600 text-white px-4 py-2 rounded hover:bg-slate-700 font-medium text-sm transition-colors duration-300">Load</button>
             <input type="file" id="fileInputConfig" accept=".json" class="hidden">
-            
-            <button id="btnSync" class="bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-700 font-medium text-sm transition-colors duration-300" disabled>Sync Tijd & Setpoints</button>
-            <button id="btnRead" class="bg-amber-500 text-white px-4 py-2 rounded hover:bg-amber-600 font-medium text-sm transition-colors duration-300" disabled>Lees van Hardware</button>
+
+            <button id="btnSync" class="bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-700 font-medium text-sm transition-colors duration-300" disabled>Sync Time & Setpoints</button>
+            <button id="btnRead" class="bg-amber-500 text-white px-4 py-2 rounded hover:bg-amber-600 font-medium text-sm transition-colors duration-300" disabled>Read from Hardware</button>
         </div>
 
         <div class="bg-white p-4 md:p-6 rounded-lg shadow lg:col-span-3">
-            <h2 class="text-xl font-bold mb-4">Verwacht Verloop (24u Interpolatie)</h2>
+            <h2 class="text-xl font-bold mb-4">Spectrum Editor</h2>
             <div class="w-full h-96 md:h-[400px]">
                 <canvas id="pwmChart"></canvas>
+            </div>
+            <div class="mt-6 pt-6 border-t">
+                <h3 class="text-lg font-bold mb-2">Measured Spectrum</h3>
+                <div class="w-full h-48">
+                    <canvas id="spectrumChart"></canvas>
+                </div>
             </div>
         </div>
 
         <div class="bg-white p-4 md:p-6 rounded-lg shadow lg:col-span-2 overflow-x-auto">
-            <h2 class="text-xl font-bold mb-4">Setpoint Matrix</h2>
+            <div class="flex gap-2 mb-4 border-b">
+                <button id="tabBtnSetpointMatrix" type="button" class="px-3 py-2 text-sm font-bold border-b-2 border-indigo-600 text-indigo-600" onclick="switchMatrixTab('setpointMatrix')">Setpoint Matrix</button>
+                <button id="tabBtnSensor" type="button" class="px-3 py-2 text-sm font-bold border-b-2 border-transparent text-gray-500" onclick="switchMatrixTab('sensor')">Sensor</button>
+                <button id="tabBtnSettings" type="button" class="px-3 py-2 text-sm font-bold border-b-2 border-transparent text-gray-500" onclick="switchMatrixTab('settings')">Settings</button>
+            </div>
+            <div id="panelSetpointMatrix">
             <table class="w-full text-sm text-left border-collapse">
                 <thead class="bg-gray-50 border-b">
                     <tr>
-                        <th class="px-2 py-3 font-semibold w-20">Tijd</th>
+                        <th class="px-2 py-3 font-semibold w-20">Time</th>
                         <th class="px-2 py-3 font-semibold text-center text-gray-500">GPIO1<br><input type="text" id="lblCh0" value="UV" class="text-xs p-1 border w-full rounded text-gray-800 font-normal mt-1"></th>
                         <th class="px-2 py-3 font-semibold text-center text-gray-500">GPIO2<br><input type="text" id="lblCh1" value="Deep Blue" class="text-xs p-1 border w-full rounded text-gray-800 font-normal mt-1"></th>
                         <th class="px-2 py-3 font-semibold text-center text-gray-500">GPIO3<br><input type="text" id="lblCh2" value="Blue" class="text-xs p-1 border w-full rounded text-gray-800 font-normal mt-1"></th>
@@ -68,17 +88,64 @@
                 <tbody id="setpointTable">
                 </tbody>
             </table>
+            </div>
+            <div id="panelSensor" class="hidden">
+                <div class="flex items-center gap-3 mb-4">
+                    <label class="text-sm font-semibold" for="selectSensorMode">Sensor:</label>
+                    <select id="selectSensorMode" class="border rounded p-1 text-sm" onchange="onSensorModeChange(this.value)">
+                        <option value="off">Off</option>
+                        <option value="mock">Mock</option>
+                        <option value="live">Live</option>
+                    </select>
+                    <span id="sensorNameDisplay" class="text-sm text-gray-500 italic">No sensor detected yet.</span>
+                    <button id="btnLoadScenario" type="button" class="hidden text-xs text-indigo-600 underline" onclick="document.getElementById('fileInputScenario').click()">Ander scenario laden…</button>
+                    <input type="file" id="fileInputScenario" accept=".json" class="hidden">
+                </div>
+                <div id="sensorSettingsForm" class="mb-4"></div>
+                <div id="sensorReadingsList" class="text-sm text-gray-600"></div>
+
+                <div class="mt-4 pt-4 border-t">
+                    <h3 class="text-sm font-semibold text-gray-500 mb-2">Raw sensor state (read-only)</h3>
+                    <div id="sensorDebugInfoPanel" class="flex flex-wrap gap-2 text-xs font-mono"></div>
+                </div>
+            </div>
+            <div id="panelSettings" class="hidden">
+                <div class="flex items-center gap-3 mb-4">
+                    <label class="text-sm font-semibold" for="selectI2cSpeed">I2C speed:</label>
+                    <select id="selectI2cSpeed" class="border rounded p-1 text-sm">
+                        <option value="10">10 kHz</option>
+                        <option value="50">50 kHz</option>
+                        <option value="100" selected>100 kHz</option>
+                        <option value="400">400 kHz</option>
+                    </select>
+                    <button id="btnApplyI2cSpeed" type="button" class="text-xs bg-slate-600 text-white px-2 py-1 rounded hover:bg-slate-700">Apply</button>
+                </div>
+                <div class="flex items-center gap-3">
+                    <label class="text-sm font-semibold" for="inputPollIntervalMs">Sensor poll interval (ms):</label>
+                    <input type="number" id="inputPollIntervalMs" min="500" step="500" value="3000" class="border rounded p-1 text-sm w-28">
+                    <button id="btnApplyPollInterval" type="button" class="text-xs bg-slate-600 text-white px-2 py-1 rounded hover:bg-slate-700">Apply</button>
+                </div>
+            </div>
         </div>
 
-        <div class="bg-white p-4 md:p-6 rounded-lg shadow lg:col-span-1 flex flex-col h-full">
-            <h2 class="text-xl font-bold mb-4">Communicatie Terminal</h2>
+        <div class="bg-white p-4 md:p-6 rounded-lg shadow lg:col-span-1 flex flex-col h-full min-h-[500px]">
+            <h2 class="text-xl font-bold mb-4">Communication Terminal</h2>
             <textarea id="txtTerminal" class="w-full flex-grow h-64 lg:h-full bg-gray-900 text-emerald-400 p-3 font-mono text-xs rounded border border-gray-800 shadow-inner resize-none" readonly></textarea>
+            <div class="flex gap-2 mt-2">
+                <input type="text" id="txtRawCommand" placeholder="Raw command (e.g. SENSOR_READ)" class="flex-grow border rounded p-1 text-xs font-mono" autocomplete="off">
+                <button id="btnSendRawCommand" type="button" class="text-xs bg-slate-700 text-white px-3 py-1 rounded hover:bg-slate-800 font-medium">Send</button>
+            </div>
             <div class="flex justify-end mt-2">
-                <button id="btnClearTerminal" class="text-xs text-gray-500 hover:text-gray-700 underline font-medium">Terminal wissen</button>
+                <button id="btnClearTerminal" class="text-xs text-gray-500 hover:text-gray-700 underline font-medium">Clear terminal</button>
             </div>
         </div>
     </div>
 
+    <script src="js/interpolation.js"></script>
+    <script src="js/sensor-protocol.js"></script>
+    <script src="js/sensor-mock.js"></script>
+    <script src="js/wavelength-color.js"></script>
+    <script src="js/spectrum-curve.js"></script>
     <script>
         // --- 1. GLOBALE VARIABELEN ---
         // Deze variabelen onthouden de verbinding en de data zolang de pagina open staat
@@ -92,8 +159,19 @@
         // Houdt bij welke grafieklijnen we hebben uitgezet door op de legenda te klikken (true = aan, false = uit)
         let channelVisible = [true, true, true, true, true, true];
         
-        // Bewaart de tijd van de chip in minuten (0 tot 1440) zodat we de rode tijdlijn kunnen tekenen
-        let picoTimeMins = null;
+        // Tijd (in minuten, 0-1440) die in het "Systeemtijd"-vak staat en waar de tijdlijn op staat.
+        // Komt van de hardware (na Sync/Lees), van het slepen aan de tijdlijn, of van de reset-knop (systeemtijd).
+        // Dit is exact de waarde die de Sync-knop naar de hardware stuurt wanneer je op Sync drukt.
+        let displayTimeMins = null;
+
+        // Geeft de tijd (in minuten sinds middernacht) die op dit moment gebruikt moet worden
+        // voor sensor-polling: de weergegeven tijd als die bekend is, anders de echte systeemtijd
+        // (zelfde idioom als de "Reset time"-knop hieronder).
+        function getEffectiveTimeMins() {
+            if (displayTimeMins !== null) return displayTimeMins;
+            const now = new Date();
+            return now.getHours() * 60 + now.getMinutes();
+        }
 
         // --- 2. BROWSER ONDERSTEUNING & KABELBEVEILIGING ---
         
@@ -105,7 +183,7 @@
                 document.getElementById('btnConnectSerial').classList.add('hidden');
                 document.getElementById('btnSync').classList.add('hidden');
                 document.getElementById('btnRead').classList.add('hidden');
-                logToTerminal('ERR', 'Web Serial API wordt niet ondersteund door deze browser. Hardware communicatie uitgeschakeld.');
+                logToTerminal('ERR', 'Web Serial API is not supported by this browser. Hardware communication disabled.');
             }
         });
 
@@ -113,7 +191,7 @@
         if ('serial' in navigator) {
             navigator.serial.addEventListener("disconnect", (event) => {
                 if (serialPort) {
-                    logToTerminal('ERR', 'USB kabel losgekoppeld. Verbinding verbroken.');
+                    logToTerminal('ERR', 'USB cable disconnected. Connection lost.');
                     handleDisconnectUI(); // Roep de reddingsfunctie aan
                 }
             });
@@ -125,23 +203,24 @@
             if (serialReader) { serialReader.releaseLock().catch(()=>{}); serialReader = null; }
             if (serialWriter) { serialWriter.releaseLock().catch(()=>{}); serialWriter = null; }
             serialPort = null;
-            
+
+            // Live sensor-polling heeft niets meer om naar te schrijven - stop de timer en
+            // zet de selector terug op "Off" zodat de UI de werkelijkheid weerspiegelt.
+            if (sensorPollTimer && sensorMode === 'live') {
+                clearInterval(sensorPollTimer);
+                sensorPollTimer = null;
+                sensorMode = 'off';
+                const selectMode = document.getElementById('selectSensorMode');
+                if (selectMode) selectMode.value = 'off';
+            }
+
             // Maak actieknoppen weer grijs (onbruikbaar)
             document.getElementById('btnSync').disabled = true;
             document.getElementById('btnRead').disabled = true;
             
-            // Maak de verbindingsknop rood ter waarschuwing
+            // Maak de verbindingsknop rood ter waarschuwing, en herstel 'm na 3 seconden vanzelf
             const btnConnect = document.getElementById('btnConnectSerial');
-            btnConnect.innerText = "Verbinding Verbroken!";
-            btnConnect.classList.replace('bg-blue-600', 'bg-red-600');
-            btnConnect.classList.replace('hover:bg-blue-700', 'hover:bg-red-700');
-            
-            // Na 3 seconden resetten we de knop weer naar "normaal", voor het geval ze de kabel weer inpluggen
-            setTimeout(() => {
-                btnConnect.innerText = "Verbind via Serial";
-                btnConnect.classList.replace('bg-red-600', 'bg-blue-600');
-                btnConnect.classList.replace('hover:bg-red-700', 'hover:bg-blue-700');
-            }, 3000);
+            flashButtonState(btnConnect, "Connection Lost!", 'bg-red-600', 'hover:bg-red-700', "Connect via Serial", 'bg-blue-600', 'hover:bg-blue-700');
         }
 
         // --- 3. HELPER FUNCTIES (Gereedschapjes) ---
@@ -155,45 +234,81 @@
             const prefix = direction === 'TX' ? `[${timestamp}] ➔ TX: ` : direction === 'RX' ? `[${timestamp}]  RX: ` : `[${timestamp}] info: `;
             terminal.value += prefix + message + '\n';
             // Zorg dat we altijd naar beneden scrollen als er een nieuw bericht is
-            terminal.scrollTop = terminal.scrollHeight; 
+            terminal.scrollTop = terminal.scrollHeight;
         };
 
-        // Rekenmachine: zet een tijdstekst (zoals "14:30") om in pure minuten (zoals 870)
-        // Handig voor wiskunde op de grafiek as (die loopt van minuut 0 tot minuut 1440)
-        const getMins = (timeStr) => {
-            if(!timeStr) return 0;
-            let [h, m] = timeStr.split(':');
-            return parseInt(h, 10) * 60 + parseInt(m, 10);
+        // Zet een knop tijdelijk in een 'status' stijl (bv. groen na succes, rood na disconnect) en herstelt hem daarna vanzelf
+        const flashButtonState = (btn, tempText, tempBg, tempHoverBg, originalText, originalBg, originalHoverBg, duration = 3000) => {
+            btn.innerText = tempText;
+            btn.classList.replace(originalBg, tempBg);
+            btn.classList.replace(originalHoverBg, tempHoverBg);
+
+            setTimeout(() => {
+                btn.innerText = originalText;
+                btn.classList.replace(tempBg, originalBg);
+                btn.classList.replace(tempHoverBg, originalHoverBg);
+            }, duration);
         };
+
+        // getMins() komt nu uit js/interpolation.js
 
         // Een pallet met 6 standaard kleuren voor de grafieklijnen
         const defaultColors = ['#a855f7', '#1d4ed8', '#3b82f6', '#9ca3af', '#b91c1c', '#7f1d1d'];
-        
+
+        // Maakt een doorzichtige (20%-dekkende) variant van een kleur voor de
+        // vulling onder een lijn — ongeacht of getColorForLabel() een hex-string
+        // (#rrggbb, van colorKeywordMap/defaultColors) of een "rgb(r,g,b)"-string
+        // (van wavelengthToCssColor, voor numerieke golflengte-labels) teruggaf.
+        // Simpelweg '33' achter een rgb(...)-string plakken levert ongeldige CSS
+        // op die de canvas stilzwijgend negeert.
+        const withAlpha = (cssColor, alphaFraction) => {
+            if (cssColor.startsWith('#')) {
+                const alphaHex = Math.round(alphaFraction * 255).toString(16).padStart(2, '0');
+                return cssColor + alphaHex;
+            }
+            const match = cssColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+            if (match) {
+                return `rgba(${match[1]}, ${match[2]}, ${match[3]}, ${alphaFraction})`;
+            }
+            return cssColor; // onbekend formaat — ongewijzigd teruggeven
+        };
+
         // Deze slimme functie scant de tekst die jij intypt in de Tabel (de kanaal namen).
         // Bevat de tekst een kleur of LED-type? Dan geeft hij direct de bijpassende HEX-kleur terug.
+        // Elk item = trefwoorden (NL/EN) die naar dezelfde kleur wijzen. Volgorde = prioriteit
+        // (bv. "deep blue" moet vóór het algemenere "blue" gecheckt worden).
+        const colorKeywordMap = [
+            { keywords: ['deep blue'], color: '#1d4ed8' },
+            { keywords: ['hyper red'], color: '#b91c1c' },
+            { keywords: ['uv', 'ultraviolet'], color: '#a855f7' }, // UV wordt paars
+            { keywords: ['ir', 'infrarood', 'infrared'], color: '#7f1d1d' }, // IR wordt donkerrood
+            { keywords: ['blauw', 'blue'], color: '#3b82f6' },
+            { keywords: ['wit', 'white'], color: '#9ca3af' }, // Wit maken we grijs, anders onzichtbaar op witte achtergrond
+            { keywords: ['rood', 'red'], color: '#ef4444' },
+            { keywords: ['geel', 'yellow'], color: '#eab308' },
+            { keywords: ['groen', 'green'], color: '#22c55e' },
+            { keywords: ['oranje', 'orange'], color: '#f97316' },
+            { keywords: ['paars', 'purple'], color: '#a855f7' },
+            { keywords: ['roze', 'pink'], color: '#ec4899' },
+            { keywords: ['cyaan', 'cyan'], color: '#06b6d4' },
+        ];
+
         const getColorForLabel = (label, index) => {
             if (!label) return defaultColors[index % 6]; // Als het leeg is, pak standaard kleur
-            let clean = label.toLowerCase().trim();
-            
-            // LED specifieke namen
-            if (clean.includes('deep blue')) return '#1d4ed8';
-            if (clean.includes('hyper red')) return '#b91c1c';
-            if (clean.includes('uv') || clean.includes('ultraviolet')) return '#a855f7'; // UV wordt paars
-            if (clean.includes('ir') || clean.includes('infrarood') || clean.includes('infrared')) return '#7f1d1d'; // IR wordt donkerrood
-            
-            // Normale kleurnamen in Engels en Nederlands
-            if (clean.includes('blauw') || clean.includes('blue')) return '#3b82f6';
-            if (clean.includes('wit') || clean.includes('white')) return '#9ca3af'; // Wit maken we grijs, anders onzichtbaar op witte achtergrond
-            if (clean.includes('rood') || clean.includes('red')) return '#ef4444';
-            if (clean.includes('geel') || clean.includes('yellow')) return '#eab308';
-            if (clean.includes('groen') || clean.includes('green')) return '#22c55e';
-            if (clean.includes('oranje') || clean.includes('orange')) return '#f97316';
-            if (clean.includes('paars') || clean.includes('purple')) return '#a855f7';
-            if (clean.includes('roze') || clean.includes('pink')) return '#ec4899';
-            if (clean.includes('cyaan') || clean.includes('cyan')) return '#06b6d4';
+            const clean = label.toLowerCase().trim();
+
+            // Is het label gewoon een getal (bv. "680")? Dan bedoelt de gebruiker een
+            // golflengte in nm — gebruik dezelfde fysische golflengte→kleur-mapping als
+            // het spectrum-paneel, niet de keyword-matching hieronder.
+            const asWavelength = Number(clean);
+            if (clean !== '' && !isNaN(asWavelength)) {
+                return wavelengthToCssColor(asWavelength);
+            }
+
+            const match = colorKeywordMap.find(entry => entry.keywords.some(k => clean.includes(k)));
 
             // Als hij niks herkent, pak dan de standaardkleur van die kolom
-            return defaultColors[index % 6];
+            return match ? match.color : defaultColors[index % 6];
         };
 
         // --- 4. GEBRUIKERSINTERFACE (UI) UPdaten ---
@@ -202,9 +317,8 @@
         // Dit doen we alleen bij het laden van een bestand of bij inkomende serieledata
         const renderTable = () => {
             const tbody = document.getElementById('setpointTable');
-            tbody.innerHTML = '';
-            
-            setpointsData.forEach((sp, i) => {
+
+            const rows = setpointsData.map((sp, i) => {
                 // Maak een HTML rij (<tr>). Bij elke wijziging (oninput) sturen we een signaal naar updateData()
                 let row = `<tr class="border-b hover:bg-gray-50">
                     <td class="px-1 py-2">
@@ -216,10 +330,29 @@
                     row += `<td class="px-1 py-2"><input type="number" id="input_${i}_${c}" class="border border-gray-300 p-1 w-full rounded text-center text-xs outline-none" value="${sp.values[c]}" oninput="updateData(${i}, ${c}, this.value)"></td>`;
                 }
                 row += `</tr>`;
-                // Plak de rij vast aan de tabel
-                tbody.innerHTML += row;
+                return row;
             });
+            // In 1 keer toewijzen i.p.v. per rij bijplakken: voorkomt dat de browser de hele tabel telkens opnieuw parsed
+            tbody.innerHTML = rows.join('');
         };
+
+        // Tab-namen -> PascalCase paneel/knop-id ("setpointMatrix" -> "panelSetpointMatrix").
+        // Generiek gemaakt toen de Settings-tab erbij kwam (was hardcoded voor precies 2).
+        const MATRIX_TABS = ['setpointMatrix', 'sensor', 'settings'];
+
+        function switchMatrixTab(tab) {
+            MATRIX_TABS.forEach(t => {
+                const active = t === tab;
+                const suffix = t.charAt(0).toUpperCase() + t.slice(1);
+                document.getElementById('panel' + suffix).classList.toggle('hidden', !active);
+
+                const btn = document.getElementById('tabBtn' + suffix);
+                btn.classList.toggle('border-indigo-600', active);
+                btn.classList.toggle('text-indigo-600', active);
+                btn.classList.toggle('border-transparent', !active);
+                btn.classList.toggle('text-gray-500', !active);
+            });
+        }
 
         // Deze functie regelt álle wijzigingen (typen of slepen) en doet fout-controles (validatie)
         window.updateData = (index, field, value) => {
@@ -288,7 +421,7 @@
         // Vertaal actuele uitgestuurde lichtpercentages ("DUTY|0.0,50.5,...") naar leesbare terminal tekst
         function parseDuty(payload) {
             const vals = payload.replace("DUTY|", "").split(',');
-            let msg = "Actuele berekende PWM output: ";
+            let msg = "Current calculated PWM output: ";
             for(let i=0; i<6; i++) {
                 const label = document.getElementById(`lblCh${i}`).value || `Ch${i+1}`;
                 let val = parseFloat(vals[i]);
@@ -300,18 +433,28 @@
             logToTerminal('INFO', msg);
         }
 
+        // Zet de tijd-badge op het scherm, gebaseerd op displayTimeMins
+        function updateTimeDisplay() {
+            const display = document.getElementById('picoTimeDisplay');
+
+            if (displayTimeMins === null) {
+                display.innerText = '--:--';
+                return;
+            }
+
+            const hh = String(Math.floor(displayTimeMins / 60)).padStart(2, '0');
+            const mm = String(displayTimeMins % 60).padStart(2, '0');
+            display.innerText = `${hh}:${mm}`;
+        }
+
         // Vertaal systeem minuten ("TIME,1200") naar een leesbare klok (20:00) én zet de rode lijn in de grafiek
-		function parsePicoTime(timeString) {
+        function parsePicoTime(timeString) {
             if (timeString && timeString.startsWith("TIME,")) {
-                const totalMins = parseInt(timeString.split(',')[1], 10);
-                picoTimeMins = totalMins; // Bewaar voor de grafiek plugin
-                
-                const hh = String(Math.floor(totalMins / 60)).padStart(2, '0');
-                const mm = String(totalMins % 60).padStart(2, '0');
-                document.getElementById('picoTimeDisplay').innerText = `${hh}:${mm}`;
-                
-                if (pwmChart) pwmChart.update('none'); 
-                
+                displayTimeMins = parseInt(timeString.split(',')[1], 10);
+
+                updateTimeDisplay();
+                if (pwmChart) pwmChart.update('none');
+
                 // --- NIEUW: Update de achtergrondkleur synchroon met de tijdslijn ---
                 updateAmbientBackground();
             }
@@ -348,7 +491,267 @@
             // Gooi de hele tabel weg en bouw hem opnieuw op met de binnengehaalde data
             renderTable(); 
             updateChart();
-            logToTerminal('INFO', 'Interface en klok gesynchroniseerd.');
+            logToTerminal('INFO', 'Interface and clock synchronized.');
+        }
+
+        // --- Sensor state (Deel 1: gevuld door Mock nu, door echte firmware zodra die bestaat) ---
+        let lastSensorInfo = null;
+        let lastSensorSettings = null;
+        let lastSensorValues = null;
+
+        function handleSensorInfoLine(line) {
+            const parsed = parseSensorInfoLine(line);
+            if (!parsed) return;
+            const isNew = !lastSensorInfo || lastSensorInfo.sensorName !== parsed.sensorName;
+            lastSensorInfo = parsed;
+            document.getElementById('sensorNameDisplay').textContent = parsed.present
+                ? parsed.sensorName
+                : `${parsed.sensorName} (sensor not responding)`;
+            if (isNew) {
+                logToTerminal('INFO', `Sensor info received: ${parsed.sensorName} (${parsed.bands.length} bands).`);
+            }
+            renderSensorReadings(lastSensorInfo.bands, lastSensorValues);
+            renderSpectrumChart(lastSensorInfo.bands, lastSensorValues);
+        }
+
+        function handleSensorSettingsLine(line) {
+            const parsed = parseSensorSettingsLine(line);
+            if (!parsed) return;
+            lastSensorSettings = parsed;
+            renderSensorSettingsForm(parsed);
+        }
+
+        function handleSensorDataLine(line) {
+            const parsed = parseSensorDataLine(line);
+            if (!parsed) return;
+            lastSensorValues = parsed;
+            if (lastSensorInfo) {
+                renderSensorReadings(lastSensorInfo.bands, lastSensorValues);
+                renderSpectrumChart(lastSensorInfo.bands, lastSensorValues);
+            }
+        }
+
+        // Puur read-only inzicht (bv. ruwe registerwaarden) — de webkant kent
+        // de sleutels niet vooraf, rendert gewoon wat de driver toevallig
+        // meestuurt. Geen enkele driver hoeft dit te implementeren
+        // (debug_dump is optioneel); zonder bericht blijft het paneel leeg.
+        function handleSensorDebugInfoLine(line) {
+            const parsed = parseSensorDebugInfoLine(line);
+            if (!parsed) return;
+            const container = document.getElementById('sensorDebugInfoPanel');
+            container.innerHTML = parsed.map(f => `
+                <div class="bg-gray-100 text-gray-500 rounded px-2 py-1 border">
+                    <span class="font-semibold">${f.key}</span>: ${f.value}
+                </div>
+            `).join('');
+        }
+
+        function renderSensorSettingsForm(settings) {
+            const container = document.getElementById('sensorSettingsForm');
+            container.innerHTML = settings.map(s => {
+                const control = s.type === 'enum'
+                    ? `<select id="sensorSetting_${s.key}" class="border rounded p-1 text-sm">${s.options.map(o => `<option value="${o}" ${o === s.value ? 'selected' : ''}>${o}</option>`).join('')}</select>`
+                    : `<input type="number" id="sensorSetting_${s.key}" class="border rounded p-1 text-sm w-24" min="${s.min}" max="${s.max}" step="${s.step}" value="${s.value}">`;
+                return `<div class="flex items-center gap-2 mb-2">
+                    <label class="text-sm w-40">${s.key}</label>
+                    ${control}
+                    <button type="button" class="text-xs bg-slate-600 text-white px-2 py-1 rounded hover:bg-slate-700" onclick="applySensorSetting('${s.key}')">Apply</button>
+                </div>`;
+            }).join('');
+        }
+
+        // Stuurt een willekeurige protocolregel — bedoeld zodat elke UI-actie (Mock/Live
+        // sensor-uitlezing, instellingen wijzigen, of toekomstige commando's) ook
+        // handmatig of door een AI die deze pagina bedient via browser-automatisering
+        // getriggerd kan worden, zonder dat daar een eigen knop voor bestaat. Zelfde
+        // routing als applySensorSetting(): Mock-modus gaat via de lokale simulator,
+        // Live-modus gaat over de echte seriële verbinding. Zie docs/agent-operations.md.
+        function sendRawCommand() {
+            const input = document.getElementById('txtRawCommand');
+            const line = input.value.trim();
+            if (!line) return;
+
+            if (sensorMode === 'mock' && sensorScenario) {
+                const now = getEffectiveTimeMins();
+                mockHandleCommand(sensorScenario, line, now).forEach(processIncomingLine);
+                logToTerminal('TX', line);
+            } else if (serialWriter) {
+                serialWriter.write(new TextEncoder().encode(line + '\n'));
+                logToTerminal('TX', line);
+            } else {
+                logToTerminal('ERR', 'Cannot send: not connected via Serial and not in Mock mode.');
+            }
+            input.value = '';
+        }
+
+        function applySensorSetting(key) {
+            const input = document.getElementById(`sensorSetting_${key}`);
+            const value = parseFloat(input.value);
+            const line = formatSensorSetLine(key, value);
+            if (sensorMode === 'mock' && sensorScenario) {
+                const now = getEffectiveTimeMins();
+                mockHandleCommand(sensorScenario, line, now).forEach(processIncomingLine);
+            } else if (sensorMode === 'live' && serialWriter) {
+                serialWriter.write(new TextEncoder().encode(line + '\n'));
+                logToTerminal('TX', line);
+            }
+        }
+
+        function renderSensorReadings(bands, values) {
+            const container = document.getElementById('sensorReadingsList');
+            if (!bands || !values) { container.innerHTML = ''; return; }
+            const rows = bands.map((b, i) => `<tr>
+                <td class="py-1">${b.label}</td>
+                <td class="py-1">${b.wavelength_nm !== null ? b.wavelength_nm + 'nm' : '—'}</td>
+                <td class="py-1">${(values[i] ?? 0).toFixed(3)}</td>
+            </tr>`).join('');
+            container.innerHTML = `<table class="w-full text-xs">
+                <thead><tr><th class="text-left">Band</th><th class="text-left">Golflengte</th><th class="text-left">Waarde</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>`;
+        }
+
+        let spectrumChart = null;
+
+        // Bouwt een lineair canvas-kleurverloop over het getekende golflengte-
+        // bereik, met tussenstops uit wavelengthToCssColor(). Dit gebeurt in een
+        // plugin-hook (zelfde patroon als currentTimePlugin/chartDragPlugin
+        // hierboven) omdat de kleur van elk punt op de curve moet overeenkomen
+        // met zijn eigen golflengte — niet met colorKeywordMap, die is gekoppeld
+        // aan vrije-tekst LED-labels, niet aan een doorlopende golflengte-as.
+        const spectrumGradientPlugin = {
+            id: 'spectrumGradient',
+            beforeDatasetsDraw(chart) {
+                const dataset = chart.data.datasets[0];
+                if (!dataset || !dataset.data.length) return;
+                const { ctx, scales: { x } } = chart;
+                const firstWl = dataset.data[0].x;
+                const lastWl = dataset.data[dataset.data.length - 1].x;
+                const xStart = x.getPixelForValue(firstWl);
+                const xEnd = x.getPixelForValue(lastWl);
+                const gradient = ctx.createLinearGradient(xStart, 0, xEnd, 0);
+                const stopCount = 40;
+                for (let i = 0; i <= stopCount; i++) {
+                    const frac = i / stopCount;
+                    const wl = firstWl + frac * (lastWl - firstWl);
+                    gradient.addColorStop(frac, wavelengthToCssColor(wl));
+                }
+                dataset.backgroundColor = gradient;
+            }
+        };
+
+        // Tekent de gemeten spectrum-curve. Puur real-time: onafhankelijk van
+        // displayTimeMins/de sleepbare tijdlijn-cursor in de hoofdgrafiek.
+        // Aanroepen met null (geen sensor-data) wist een bestaande grafiek i.p.v.
+        // te tekenen, zodat dit ook dient als reset-functie bij Sensor-modus "Off".
+        function renderSpectrumChart(bands, values) {
+            if (!bands || !values) {
+                if (spectrumChart) {
+                    spectrumChart.data.datasets[0].data = [];
+                    spectrumChart.update('none');
+                }
+                return;
+            }
+
+            const curve = computeSpectrumCurve(bands, values, { rangeMin: 350, rangeMax: 1000, stepNm: 2 });
+            const points = curve.map(p => ({ x: p.wavelength, y: p.intensity }));
+
+            if (spectrumChart) {
+                spectrumChart.data.datasets[0].data = points;
+                spectrumChart.update('none');
+                return;
+            }
+
+            const ctx = document.getElementById('spectrumChart').getContext('2d');
+            spectrumChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        data: points,
+                        borderColor: '#94a3b8',
+                        borderWidth: 1,
+                        fill: 'origin',
+                        pointRadius: 0,
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    interaction: { mode: 'nearest', intersect: false },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                title: (context) => `${Math.round(context[0].parsed.x)}nm`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            min: 350,
+                            max: 1000,
+                            title: { display: true, text: 'Wavelength (nm)' }
+                        },
+                        y: {
+                            min: 0,
+                            title: { display: true, text: 'Intensity' }
+                        }
+                    }
+                },
+                plugins: [spectrumGradientPlugin]
+            });
+            // Chart.js's built-in Filler plugin resolves/caches its fill style
+            // during the update phase, before our spectrumGradientPlugin's
+            // beforeDatasetsDraw hook (a draw-phase hook) gets a chance to set
+            // dataset.backgroundColor. On this very first render there is no
+            // previous cycle to fall back on, so without a second pass here the
+            // curve would paint with Chart.js's flat default fill instead of the
+            // wavelength gradient. Forcing one more full update immediately makes
+            // the gradient (already computed during the first pass) visible from
+            // the start, instead of only from the second call onward.
+            spectrumChart.update();
+        }
+
+        // Alle binnenkomende regels (Live via serial, Mock via de sensor-simulatie) lopen
+        // door dit ene punt, zodat beide exact hetzelfde gedrag krijgen.
+        function processIncomingLine(line) {
+            line = line.trim();
+            if (line.length === 0) return;
+
+            if (line === "ACK") {
+                logToTerminal('INFO', 'Acknowledgement (ACK) received: settings successfully written to flash.');
+                const btn = document.getElementById('btnSync');
+                flashButtonState(btn, "✓ Saved!", 'bg-green-500', 'hover:bg-green-600', "Sync Time & Setpoints", 'bg-emerald-600', 'hover:bg-emerald-700');
+                return;
+            }
+
+            const isQuiet = line.startsWith("STATE|") || line.startsWith("DUTY|") || line.startsWith("EMPTY|") ||
+                line.startsWith("SENSOR_INFO|") || line.startsWith("SENSOR_SETTINGS|") || line.startsWith("SENSOR_DATA|") ||
+                line.startsWith("SENSOR_DEBUG_INFO|");
+            if (!isQuiet) {
+                logToTerminal('RX', line);
+            }
+
+            if (line.startsWith("STATE|")) {
+                parseState(line);
+            } else if (line.startsWith("DUTY|")) {
+                parseDuty(line);
+            } else if (line.startsWith("EMPTY|")) {
+                const parts = line.split('|');
+                parsePicoTime(parts[1]);
+                logToTerminal('INFO', 'No configuration stored on the hardware.');
+            } else if (line.startsWith("SENSOR_INFO|")) {
+                handleSensorInfoLine(line);
+            } else if (line.startsWith("SENSOR_SETTINGS|")) {
+                handleSensorSettingsLine(line);
+            } else if (line.startsWith("SENSOR_DATA|")) {
+                handleSensorDataLine(line);
+            } else if (line.startsWith("SENSOR_DEBUG_INFO|")) {
+                handleSensorDebugInfoLine(line);
+            }
         }
 
         // --- 6. BESTANDSBEHEER (Opslaan & Laden vanaf hardeschijf) ---
@@ -374,7 +777,7 @@
             downloadAnchorNode.click(); // Klik hem stiekem aan
             downloadAnchorNode.remove(); // En gooi de link weer in de prullenbak
             
-            logToTerminal('INFO', 'Configuratie lokaal opgeslagen als biolights_config.json');
+            logToTerminal('INFO', 'Configuration saved locally as biolights_config.json');
         });
 
         // Koppel de mooie grijze laadknop aan het onzichtbare, lelijke standaard HTML 'file' input veld
@@ -407,12 +810,12 @@
                         // Herbouw de schermen
                         renderTable();
                         updateChart();
-                        logToTerminal('INFO', `Configuratie ingeladen: ${file.name}`);
+                        logToTerminal('INFO', `Configuration loaded: ${file.name}`);
                     } else {
-                        logToTerminal('ERR', 'Ongeldig configuratiebestand. Data structuur onbekend.');
+                        logToTerminal('ERR', 'Invalid configuration file. Unknown data structure.');
                     }
                 } catch (error) {
-                    logToTerminal('ERR', `Fout bij inladen bestand: ${error.message}`);
+                    logToTerminal('ERR', `Error loading file: ${error.message}`);
                 }
             };
             reader.readAsText(file);
@@ -431,28 +834,29 @@
                 
                 document.getElementById('btnSync').disabled = false;
                 document.getElementById('btnRead').disabled = false;
-                logToTerminal('INFO', 'Verbonden met seriële poort.');
-                
+                logToTerminal('INFO', 'Connected to serial port.');
+
                 // Start direct de oneindige meeluister-loop
-                readLoop(); 
+                readLoop();
             } catch (e) {
-                logToTerminal('ERR', `Verbindingsfout: ${e.message}`);
+                logToTerminal('ERR', `Connection error: ${e.message}`);
             }
         });
 
-        // Stuur alle gegevens op het scherm naar de controller om geprogrammeerd te worden
-        document.getElementById('btnSync').addEventListener('click', async () => {
+        // Bouwt het SYNC-commando en stuurt het naar de hardware. Verstuurt exact de tijd die op dit moment
+        // in het "Systeemtijd"-vak staat (displayTimeMins) - ongeacht of dat de echte tijd is of een gesleepte tijd.
+        // Was er nog nooit een tijd bekend (net verbonden, nog niks gelezen/gesleept/gereset)? Val dan terug op nu.
+        async function sendSync() {
             if (!serialWriter) return;
-            
-            // We sturen altijd de actuele computertijd mee om de klok van de Pico gelijk te zetten
+
             const now = new Date();
-            const currentMins = now.getHours() * 60 + now.getMinutes();
-            
+            const currentMins = displayTimeMins !== null ? displayTimeMins : (now.getHours() * 60 + now.getMinutes());
+
             let labels = [];
             for(let i=0; i<6; i++) {
                 labels.push(document.getElementById(`lblCh${i}`).value || `Ch${i+1}`);
             }
-            
+
             // Construeer een grote String (tekstregel) volgens ons eigen ontworpen protocol
             let payload = `SYNC|${currentMins}`;
             setpointsData.forEach(sp => {
@@ -461,10 +865,24 @@
                 payload += `|${tMins},${sp.values.join(',')}`;
             });
             payload += `|LABELS,${labels.join(',')}\n`;
-            
+
             // Verstuur alles!
             await serialWriter.write(new TextEncoder().encode(payload));
             logToTerminal('TX', payload.trim());
+        }
+
+        // Stuur alle gegevens op het scherm naar de controller om geprogrammeerd te worden.
+        // Dit is de ENIGE knop die daadwerkelijk naar de hardware schrijft.
+        document.getElementById('btnSync').addEventListener('click', () => sendSync());
+
+        // Tijdlijn terugzetten naar de echte systeemtijd. Puur lokaal: schrijft nooit naar de hardware.
+        document.getElementById('btnResetTime').addEventListener('click', () => {
+            const now = new Date();
+            displayTimeMins = now.getHours() * 60 + now.getMinutes();
+            updateTimeDisplay();
+            updateAmbientBackground();
+            if (pwmChart) pwmChart.update('none');
+            logToTerminal('INFO', 'Timeline reset to system time (local only, no hardware sync).');
         });
 
         // Roep tegen de Pico: "Vertel me wat er momenteel op je geheugen (Flash) staat!"
@@ -477,6 +895,43 @@
         // Prullenbak icoontje voor terminal
         document.getElementById('btnClearTerminal').addEventListener('click', () => {
             document.getElementById('txtTerminal').value = '';
+        });
+
+        // Raw command veld: Send-knop of Enter in het tekstveld
+        document.getElementById('btnSendRawCommand').addEventListener('click', sendRawCommand);
+        document.getElementById('txtRawCommand').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') sendRawCommand();
+        });
+
+        // --- Settings-tab: I2C-snelheid & poll-interval ---
+        // I2C is een bordkeuze, geen sensor-eigenschap (zie board_config.h) —
+        // dit gaat dus altijd rechtstreeks over de seriële verbinding, nooit
+        // via de sensor-mock (die heeft geen echte I2C om te configureren).
+        document.getElementById('btnApplyI2cSpeed').addEventListener('click', () => {
+            const khz = document.getElementById('selectI2cSpeed').value;
+            const line = `I2C_CONFIG|${khz}`;
+            if (serialWriter) {
+                serialWriter.write(new TextEncoder().encode(line + '\n'));
+                logToTerminal('TX', line);
+            } else {
+                logToTerminal('ERR', 'I2C_CONFIG requires an active serial connection.');
+            }
+        });
+
+        document.getElementById('btnApplyPollInterval').addEventListener('click', () => {
+            const ms = parseInt(document.getElementById('inputPollIntervalMs').value, 10);
+            if (!ms || ms < 500) return;
+            sensorPollIntervalMs = ms;
+            if (sensorPollTimer) startSensorPolling();  // herstart meteen met de nieuwe waarde
+            logToTerminal('INFO', `Sensor poll interval set to ${ms}ms.`);
+        });
+
+        // --- Grafieken netjes laten herschalen na een browser-zoomwijziging ---
+        // Chart.js' eigen responsive-modus vangt niet elke zoom-only wijziging
+        // betrouwbaar op in elke browser; dit is een expliciete fallback.
+        window.addEventListener('resize', () => {
+            if (pwmChart) pwmChart.resize();
+            if (spectrumChart) spectrumChart.resize();
         });
 
         // --- DE LUISTER VINK (Loop) ---
@@ -499,50 +954,12 @@
                         buffer = lines.pop(); // Wat geen enter had, laten we in de buffer voor de volgende keer
                         
                         for (let line of lines) {
-                            line = line.trim();
-                            if (line.length > 0) {
-                                
-                                // === POSITIEVE TERUGKOPPELING (ACK) ===
-                                // Als de Pico "ACK" zegt, dan weten we 100% zeker dat schrijven naar Flash is gelukt!
-                                if (line === "ACK") {
-                                    logToTerminal('INFO', 'Bevestiging (ACK) ontvangen: Instellingen succesvol weggeschreven naar Flash.');
-                                    
-                                    // Maak de Sync knop groen met een vinkje als bewijs voor de gebruiker
-                                    const btn = document.getElementById('btnSync');
-                                    btn.innerText = "✓ Opgeslagen!";
-                                    btn.classList.replace('bg-emerald-600', 'bg-green-500');
-                                    btn.classList.replace('hover:bg-emerald-700', 'hover:bg-green-600');
-                                    
-                                    // Zet de knop na 3 seconden stilletjes weer terug op zijn normale taak
-                                    setTimeout(() => {
-                                        btn.innerText = "Sync Tijd & Setpoints";
-                                        btn.classList.replace('bg-green-500', 'bg-emerald-600');
-                                        btn.classList.replace('hover:bg-green-600', 'hover:bg-emerald-700');
-                                    }, 3000);
-                                    continue; // Ga door naar de volgende bericht-regel
-                                }
-
-                                // We printen niet élk bericht naar de Terminal (voorkomt spam van standaard status berichten)
-                                if (!line.startsWith("STATE|") && !line.startsWith("DUTY|") && !line.startsWith("EMPTY|")) {
-                                    logToTerminal('RX', line);
-                                }
-                                
-                                // Verdeel het werk naar de juiste vertaalfunctie gebaseerd op het voorvoegsel
-                                if (line.startsWith("STATE|")) {
-                                    parseState(line);
-                                } else if (line.startsWith("DUTY|")) {
-                                    parseDuty(line);
-                                } else if (line.startsWith("EMPTY|")) {
-                                    const parts = line.split('|');
-                                    parsePicoTime(parts[1]);
-                                    logToTerminal('INFO', 'Geen configuratie opgeslagen op hardware.');
-                                }
-                            }
+                            processIncomingLine(line);
                         }
                     }
                 } catch (error) {
                     // Crash? Vaak is dan de stekker eruit getrokken terwijl we wisten
-                    logToTerminal('ERR', `Leesfout of kabel verbroken: ${error.message}`);
+                    logToTerminal('ERR', `Read error or cable disconnected: ${error.message}`);
                     handleDisconnectUI();
                 } finally {
                     // Geef geheugen weer netjes vrij
@@ -553,12 +970,117 @@
             }
         }
 
+        // --- Sensor: Mock / Live / Off ---
+        let sensorMode = 'off';
+        let sensorScenario = null;
+        let sensorPollTimer = null;
+        let sensorPollIntervalMs = 3000; // instelbaar via de Settings-tab
+        let sensorScenarioLoadPromise = null; // Voorkomt dubbele fetches bij snel Mock/Off/Mock wisselen
+
+        function loadDefaultScenario() {
+            // Loopt er al een fetch? Geef diezelfde promise terug in plaats van een tweede te starten.
+            if (sensorScenarioLoadPromise) return sensorScenarioLoadPromise;
+
+            sensorScenarioLoadPromise = (async () => {
+                try {
+                    const res = await fetch('mock-sensor-scenario.json');
+                    if (!res.ok) {
+                        throw new Error(`HTTP ${res.status} while fetching mock-sensor-scenario.json`);
+                    }
+                    const scenario = await res.json();
+                    sensorScenario = scenario;
+                    logToTerminal('INFO', `Sensor scenario loaded: mock-sensor-scenario.json (${sensorScenario.sensor_name}).`);
+                } catch (error) {
+                    sensorScenario = null;
+                    logToTerminal('ERR', `Failed to load default sensor scenario: ${error.message}`);
+                } finally {
+                    sensorScenarioLoadPromise = null;
+                }
+            })();
+
+            return sensorScenarioLoadPromise;
+        }
+
+        function tickSensorPoll() {
+            if (sensorMode === 'mock' && sensorScenario) {
+                const now = getEffectiveTimeMins();
+                mockHandleCommand(sensorScenario, SENSOR_READ_LINE, now).forEach(processIncomingLine);
+            } else if (sensorMode === 'live' && serialWriter) {
+                serialWriter.write(new TextEncoder().encode(SENSOR_READ_LINE + '\n'));
+                logToTerminal('TX', SENSOR_READ_LINE);
+            }
+        }
+
+        function startSensorPolling() {
+            if (sensorPollTimer) clearInterval(sensorPollTimer);
+            sensorPollTimer = setInterval(tickSensorPoll, sensorPollIntervalMs);
+            tickSensorPoll();
+        }
+
+        function onSensorModeChange(mode) {
+            sensorMode = mode;
+            if (sensorPollTimer) { clearInterval(sensorPollTimer); sensorPollTimer = null; }
+            document.getElementById('btnLoadScenario').classList.toggle('hidden', mode !== 'mock');
+
+            // Reset naar een schone basisstaat bij elke moduswissel, zodat de naam-weergave
+            // en het spectrum-panel nooit een oude meting uit de vorige modus laten staan
+            // (bv. Mock -> Live zonder actieve seriële verbinding).
+            lastSensorInfo = null;
+            lastSensorSettings = null;
+            lastSensorValues = null;
+            document.getElementById('sensorSettingsForm').innerHTML = '';
+            document.getElementById('sensorReadingsList').innerHTML = '';
+            document.getElementById('sensorDebugInfoPanel').innerHTML = '';
+            document.getElementById('sensorNameDisplay').textContent = 'No sensor detected yet.';
+            renderSpectrumChart(null, null);
+
+            if (mode === 'off') {
+                return;
+            }
+
+            if (mode === 'mock' && !sensorScenario) {
+                loadDefaultScenario().then(() => {
+                    // De gebruiker kan intussen naar Off (of terug) zijn gewisseld, of de fetch
+                    // kan mislukt zijn (sensorScenario blijft dan null) - alleen pollen starten
+                    // als we nog steeds in Mock-modus zitten met een geladen scenario.
+                    if (sensorMode === 'mock' && sensorScenario) {
+                        startSensorPolling();
+                    }
+                });
+                return;
+            }
+
+            if (mode === 'live' && !serialWriter) {
+                logToTerminal('ERR', 'Live mode requires an active serial connection. Connect via Serial first.');
+                return;
+            }
+
+            startSensorPolling();
+        }
+
+        document.getElementById('fileInputScenario').addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    sensorScenario = JSON.parse(e.target.result);
+                    logToTerminal('INFO', `Sensor scenario loaded: ${file.name} (${sensorScenario.sensor_name}).`);
+                    startSensorPolling();
+                } catch (error) {
+                    logToTerminal('ERR', `Error loading sensor scenario: ${error.message}`);
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        });
+
         // --- 8. GRAFIEK (CHART.JS) CONFIGURATIE & PLUGINS ---
 
         let pwmChart = null; // Het hoofdschilderij
         let dragInfo = null; // Als je iets oppakt met je muis, onthouden we hier WELK bolletje je vast hebt
 
-        // CUSTOM PLUGIN 1: Dit scriptje voegt de mogelijkheid toe om bolletjes op te pakken en te slepen
+        // CUSTOM PLUGIN 1: Dit scriptje voegt de mogelijkheid toe om bolletjes én de tijdlijn op te pakken en te slepen
         const chartDragPlugin = {
             id: 'dragSetpoints',
             beforeEvent(chart, args) { // Vuur af voordat Chart.js zelf gaat bepalen wat een muis-klik doet
@@ -566,6 +1088,12 @@
                 const canvas = chart.canvas;
 
                 // Trucje om te zorgen dat dit algoritme met ZOWEL muis als vingers (Touch) overweg kan
+                const getEventX = (evt) => {
+                    if (evt.native.touches && evt.native.touches.length > 0) {
+                        return evt.native.touches[0].clientX;
+                    }
+                    return evt.native.clientX;
+                };
                 const getEventY = (evt) => {
                     if (evt.native.touches && evt.native.touches.length > 0) {
                         return evt.native.touches[0].clientY;
@@ -573,13 +1101,32 @@
                     return evt.native.clientY;
                 };
 
-                // ZWEEF-EFFECT: Als we de muis bewegen zonder te klikken, en we raken een bolletje...
+                // Zit de muis/vinger dicht genoeg bij de tijdlijn om 'm te kunnen oppakken?
+                const isNearTimeLine = (evt) => {
+                    if (displayTimeMins === null) return false;
+                    const rect = canvas.getBoundingClientRect();
+                    const px = getEventX(evt) - rect.left;
+                    const py = getEventY(evt) - rect.top;
+                    const { top, bottom } = chart.chartArea;
+                    if (py < top || py > bottom) return false;
+                    const xPos = chart.scales.x.getPixelForValue(displayTimeMins);
+                    return Math.abs(px - xPos) <= 8;
+                };
+
+                // ZWEEF-EFFECT: Als we de muis bewegen zonder te klikken...
                 if (e.type === 'mousemove' && !dragInfo) {
-                    // ...kijk dan of er een bolletje in de buurt is dat ZICHTBAAR is...
+                    // ...kijk dan eerst of er een bolletje in de buurt is dat ZICHTBAAR is...
                     const points = chart.getElementsAtEventForMode(e.native, 'nearest', { intersect: true }, false);
-                    const isHovering = points.some(p => p.datasetIndex >= 6 && chart.isDatasetVisible(p.datasetIndex));
-                    // ...en verander de muispijl in een verticaal streepje (resize cursor) als hint!
-                    canvas.style.cursor = isHovering ? 'ns-resize' : 'default';
+                    const isHoveringHandle = points.some(p => p.datasetIndex >= 6 && chart.isDatasetVisible(p.datasetIndex));
+
+                    // ...en anders of we dicht bij de tijdlijn zweven, en kies de bijpassende muispijl
+                    if (isHoveringHandle) {
+                        canvas.style.cursor = 'ns-resize';
+                    } else if (isNearTimeLine(e)) {
+                        canvas.style.cursor = 'ew-resize';
+                    } else {
+                        canvas.style.cursor = 'default';
+                    }
                 }
 
                 // OPPAKKEN: Je drukt de muis (of vinger) in...
@@ -587,54 +1134,86 @@
                     const points = chart.getElementsAtEventForMode(e.native, 'nearest', { intersect: true }, false);
                     // .find zorgt ervoor dat we altijd prioriteit geven aan het bolletje (index >= 6), zelfs als de lijn er overheen ligt
                     const point = points.find(p => p.datasetIndex >= 6 && chart.isDatasetVisible(p.datasetIndex));
-                    
-                    if (point) { 
+
+                    if (point) {
                         // Bingo! We hebben een bolletje gepakt. Reken terug van welk kanaal dit was (- 6)
-                        const channel = point.datasetIndex - 6; 
+                        const channel = point.datasetIndex - 6;
                         const dataObj = chart.data.datasets[point.datasetIndex].data[point.index];
                         // Sla op in de dragInfo: 'We zijn nu aan het slepen met setpoint X van kanaal Y'
-                        dragInfo = { channel, originalIndex: dataObj.originalIndex }; 
+                        dragInfo = { type: 'setpoint', channel, originalIndex: dataObj.originalIndex };
                         canvas.style.cursor = 'ns-resize';
                         // Belangrijk op telefoons: Voorkom dat het hele beeldscherm mee scrollt (pull-to-refresh)
                         if(e.type === 'touchstart' && e.native.cancelable) e.native.preventDefault();
+                    } else if (isNearTimeLine(e)) {
+                        // Geen bolletje geraakt, maar wel dicht bij de tijdlijn: ga die simuleren/slepen
+                        dragInfo = { type: 'timeline' };
+                        canvas.style.cursor = 'ew-resize';
+                        if(e.type === 'touchstart' && e.native.cancelable) e.native.preventDefault();
                     }
                 }
-                
+
                 // SLEPEN: Je verplaatst je muis TERWIJL dragInfo gevuld is...
                 if ((e.type === 'mousemove' || e.type === 'touchmove') && dragInfo) {
-                    canvas.style.cursor = 'ns-resize';
                     const rect = canvas.getBoundingClientRect();
-                    const y = getEventY(e) - rect.top; // Reken de Y pixel uit relatief ten opzichte van het scherm
 
-                    // Vraag aan Chart.js: "Hoeveel procent is deze pixel?"
-                    let valY = chart.scales.y.getValueForPixel(y);
-                    
-                    // Snapping: Maak er mooie even getallen van (stapjes van 2%)
-                    valY = Math.round(valY / 2) * 2; 
-                    valY = Math.max(0, Math.min(100, valY)); // Ga niet onder de 0 of over de 100
+                    if (dragInfo.type === 'timeline') {
+                        canvas.style.cursor = 'ew-resize';
+                        const x = getEventX(e) - rect.left; // Reken de X pixel uit relatief ten opzichte van het scherm
 
-                    // Performance Check: Heeft het slepen geleid tot een ándere afronding? Zo niet, doe dan niets! (Scheelt rekenkracht)
-                    if (setpointsData[dragInfo.originalIndex].values[dragInfo.channel] !== valY) {
-                        setpointsData[dragInfo.originalIndex].values[dragInfo.channel] = valY;
-                        
-                        // Update ook even fysiek het tekst-vakje in de Tabel beneden, zodat alles klopt
-                        const inputField = document.getElementById(`input_${dragInfo.originalIndex}_${dragInfo.channel}`);
-                        if (inputField) {
-                            inputField.value = valY;
+                        // Vraag aan Chart.js: "Welk tijdstip hoort bij deze pixel?"
+                        let valX = chart.scales.x.getValueForPixel(x);
+                        valX = Math.round(valX / 5) * 5; // Snapping: stapjes van 5 minuten
+                        valX = Math.max(0, Math.min(1439, valX));
+
+                        // Performance check: alleen herberekenen als het tijdstip écht veranderd is
+                        if (displayTimeMins !== valX) {
+                            displayTimeMins = valX; // Puur lokaal: dit stuurt niets naar de hardware
+                            updateTimeDisplay();
+                            updateAmbientBackground();
+                            chart.update('none'); // Hertekent de tijdlijn zelf via currentTimePlugin
                         }
-                        updateChart(true); // Vraag om een hertekening van de grafiek ZONDER vertragende animaties
+                    } else {
+                        canvas.style.cursor = 'ns-resize';
+                        const y = getEventY(e) - rect.top; // Reken de Y pixel uit relatief ten opzichte van het scherm
+
+                        // Vraag aan Chart.js: "Hoeveel procent is deze pixel?"
+                        let valY = chart.scales.y.getValueForPixel(y);
+
+                        // Snapping: Maak er mooie even getallen van (stapjes van 2%)
+                        valY = Math.round(valY / 2) * 2;
+                        valY = Math.max(0, Math.min(100, valY)); // Ga niet onder de 0 of over de 100
+
+                        // Performance Check: Heeft het slepen geleid tot een ándere afronding? Zo niet, doe dan niets! (Scheelt rekenkracht)
+                        if (setpointsData[dragInfo.originalIndex].values[dragInfo.channel] !== valY) {
+                            setpointsData[dragInfo.originalIndex].values[dragInfo.channel] = valY;
+
+                            // Update ook even fysiek het tekst-vakje in de Tabel beneden, zodat alles klopt
+                            const inputField = document.getElementById(`input_${dragInfo.originalIndex}_${dragInfo.channel}`);
+                            if (inputField) {
+                                inputField.value = valY;
+                            }
+                            updateChart(true); // Vraag om een hertekening van de grafiek ZONDER vertragende animaties
+                        }
                     }
                     if(e.native.cancelable) e.native.preventDefault();
                 }
-                
+
                 // LOSLATEN
                 if (e.type === 'mouseup' || e.type === 'mouseout' || e.type === 'touchend') {
                     if (dragInfo) {
+                        const wasTimeline = dragInfo.type === 'timeline';
                         dragInfo = null; // Maak de handjes leeg
                         canvas.style.cursor = 'default';
-                        // Doe nu één grote, finale en perfecte render zodat de tabel en lijntjes messcherp vast staan
-                        renderTable();
-                        updateChart();
+
+                        if (wasTimeline) {
+                            // Eén laatste nette redraw van lijn + achtergrond
+                            updateAmbientBackground();
+                            chart.update();
+                        } else {
+                            // Doe nu één grote, finale en perfecte render zodat de tabel en lijntjes messcherp vast staan
+                            renderTable();
+                            updateChart();
+                        }
                     }
                 }
             }
@@ -644,11 +1223,11 @@
         const currentTimePlugin = {
             id: 'currentTimeLine',
             afterDraw(chart) { // Vuur af NÁDAT Chart.js alle lijnen al heeft getekend, we schilderen er overheen
-                if (picoTimeMins === null) return; // Geen tijd bekend? Niks tekenen!
+                if (displayTimeMins === null) return; // Geen tijd bekend? Niks tekenen!
                 const { ctx, chartArea: { top, bottom }, scales: { x } } = chart;
-                
+
                 // Vraag aan de wiskunde as: Welke X pixel hoort er bij bijvoorbeeld minuut 800?
-                const xPos = x.getPixelForValue(picoTimeMins);
+                const xPos = x.getPixelForValue(displayTimeMins);
 
                 ctx.save();
                 ctx.beginPath();
@@ -661,83 +1240,76 @@
                 ctx.restore();
             }
         };
-		
-		function updateAmbientBackground() {
-    if (picoTimeMins === null) return;
+        // interpolateFrame() en interpolateValue() komen nu uit js/interpolation.js
 
-    let sorted = setpointsData.map((sp, idx) => ({
-        time: getMins(sp.time),
-        values: sp.values,
-        originalIndex: idx 
-    })).sort((a, b) => a.time - b.time);
+        // --- NIEUW: Dynamische Ambient Achtergrondmenging ---
+        function updateAmbientBackground() {
+            const nu = displayTimeMins;
+            // Als er nog geen tijd bekend is, doen we niks
+            if (nu === null) return;
 
-    let nu = picoTimeMins;
-    let sp_prev = sorted[sorted.length - 1]; 
-    let sp_next = sorted[0];                 
+            // 1. Sorteer de setpoints op tijd voor de exacte berekening (net als in de grafiek)
+            let sorted = setpointsData.map((sp, idx) => ({
+                time: getMins(sp.time),
+                values: sp.values,
+                originalIndex: idx
+            })).sort((a, b) => a.time - b.time);
 
-    for (let i = 0; i < sorted.length; i++) {
-        if (sorted[i].time <= nu) {
-            sp_prev = sorted[i];
-            sp_next = sorted[(i + 1) % sorted.length];
+            const frame = interpolateFrame(sorted, nu);
+
+            let mixedR = 0, mixedG = 0, mixedB = 0;
+            let totalWeight = 0;
+
+            // 2. Bereken per kanaal de exacte felheid op DIT moment en ontleed de kleur
+            for (let c = 0; c < 6; c++) {
+                let duty = Math.max(0, Math.min(100, interpolateValue(frame, nu, c)));
+
+                // Haal de actuele kleur van dit specifieke kanaal op
+                let lblVal = document.getElementById(`lblCh${c}`).value;
+                let hex = getColorForLabel(lblVal, c);
+                
+                // Converteer de HEX-kleurststring (#RRGGBB) naar losse RGB getallen (0-255)
+                let r = parseInt(hex.substring(1, 3), 16);
+                let g = parseInt(hex.substring(3, 5), 16);
+                let b = parseInt(hex.substring(5, 7), 16);
+
+                // Vermenigvuldig de kleur met de felheid (hoe feller de LED, hoe zwaarder de kleurmenging)
+                mixedR += r * duty;
+                mixedG += g * duty;
+                mixedB += b * duty;
+                totalWeight += duty; // Tel alle duty cycles bij elkaar op als totaalgewicht
+            }
+
+            // 3. Bepaal het algehele helderheidsniveau: gemiddelde van alle 6 duty-cycles, 0 (alles uit) tot 1 (alles vol aan)
+            const brightnessLevel = totalWeight / (6 * 100);
+
+            let finalR = 0, finalG = 0, finalB = 0; // Standaard pure zwart (de "nacht"-situatie)
+
+            if (totalWeight > 0) {
+                // De kleur van het licht zelf: het gewogen gemiddelde van de actieve kanaalkleuren
+                const hueR = mixedR / totalWeight;
+                const hueG = mixedG / totalWeight;
+                const hueB = mixedB / totalWeight;
+
+                // Onder de 50% helderheid mengen we geleidelijk vanuit zwart naar de pure lichtkleur;
+                // boven de 50% mengen we van die lichtkleur verder door naar wit (echt helderder, geen vast tintje meer)
+                const shadeAmount = Math.max(0, 1 - 2 * brightnessLevel); // 1 = volledig zwart, 0 vanaf 50% helderheid
+                const tintAmount = Math.max(0, 2 * brightnessLevel - 1);  // 0 tot 50% helderheid, 1 = volledig wit
+                const hueAmount = 1 - shadeAmount - tintAmount;
+
+                finalR = Math.round(hueR * hueAmount + 255 * tintAmount);
+                finalG = Math.round(hueG * hueAmount + 255 * tintAmount);
+                finalB = Math.round(hueB * hueAmount + 255 * tintAmount);
+            }
+            // Staan alle kanalen op 0%? Dan blijft totalWeight 0 en dus finalR/G/B op 0: écht zwart, zoals de nacht zelf.
+
+            // Pas de berekende mengkleur direct toe op de HTML body achtergrond
+            document.body.style.backgroundColor = `rgb(${finalR}, ${finalG}, ${finalB})`;
         }
-    }
-
-    let _T1 = sp_prev.time;
-    let _T2 = sp_next.time;
-    if (_T1 > nu && _T1 >= _T2) _T1 -= 1440;
-    if (_T2 < nu || _T2 <= _T1) _T2 += 1440;
-
-    let mixedR = 0, mixedG = 0, mixedB = 0;
-    let totalWeight = 0;
-    let maxDuty = 0;
-
-    for (let c = 0; c < 6; c++) {
-        let val = sp_prev.values[c];
-        if (_T1 !== _T2) {
-            val = sp_prev.values[c] + (sp_next.values[c] - sp_prev.values[c]) * (nu - _T1) / (_T2 - _T1);
-        }
-        let duty = Math.max(0, Math.min(100, val));
-        
-        // Sla de hoogst actieve duty cycle op voor de uiteindelijke intensiteit
-        if (duty > maxDuty) maxDuty = duty;
-
-        let lblVal = document.getElementById(`lblCh${c}`).value;
-        let hex = getColorForLabel(lblVal, c);
-        
-        let r = parseInt(hex.substring(1, 3), 16);
-        let g = parseInt(hex.substring(3, 5), 16);
-        let b = parseInt(hex.substring(5, 7), 16);
-
-        mixedR += r * duty;
-        mixedG += g * duty;
-        mixedB += b * duty;
-        totalWeight += duty; 
-    }
-
-    // Basiswaarde bij 0% output is nagenoeg zwart (RGB 15, 15, 15)
-    let finalR = 15, finalG = 15, finalB = 15;
-
-    if (totalWeight > 0) {
-        let avgR = mixedR / totalWeight;
-        let avgG = mixedG / totalWeight;
-        let avgB = mixedB / totalWeight;
-
-        // Maak de dekkingsgraad (mixFactor) schaalbaar op basis van de maximale felheid.
-        // Maximaal 85% doordrukking van de kleur om leesbaarheid van panelen te behouden.
-        let mixFactor = (maxDuty / 100) * 0.85; 
-        
-        finalR = Math.round((1 - mixFactor) * 15 + mixFactor * avgR);
-        finalG = Math.round((1 - mixFactor) * 15 + mixFactor * avgG);
-        finalB = Math.round((1 - mixFactor) * 15 + mixFactor * avgB);
-    }
-
-    document.body.style.backgroundColor = `rgb(${finalR}, ${finalG}, ${finalB})`;
-}
 		
         // DIT IS DE MOTOR VAN DE GRAFIEK. Hier wordt de Data vertaald naar pixels.
-		// DIT IS DE MOTOR VAN DE GRAFIEK. Hier wordt de Data vertaald naar pixels.
         function updateChart(skipAnimation = false) {
-            const allLineData = [];
+            const allLineData = Array.from({ length: 6 }, () => []);
             const allHandleData = [];
 
             // We maken een tijdelijk lijstje dat chronologisch gesorteerd is (00:00 -> 23:59).
@@ -745,45 +1317,25 @@
             let sorted = setpointsData.map((sp, idx) => ({
                 time: getMins(sp.time),
                 values: sp.values,
-                originalIndex: idx 
+                originalIndex: idx
             })).sort((a, b) => a.time - b.time);
 
-            // Wiskunde blok: Interpolatie (het verbinden van de puntjes met een rechte lijn)
-            for (let c = 0; c < 6; c++) {
-                const lineData = [];
-                // Maak per kanaal voor iedere 15 minuten op een dag (24u) een meetpunt aan
-                for (let m = 0; m <= 1440; m += 15) { 
-                    let nu = (m === 1440) ? 0 : m; // Rol klokslag middernacht (1440) terug naar nul om wiskunde simpel te houden
+            // Wiskunde blok: Interpolatie (het verbinden van de puntjes met een rechte lijn).
+            // Het frame (buur-setpoints + middernacht-wraparound) hangt alleen af van het tijdstip 'm',
+            // niet van het kanaal, dus zoeken we het 1x per tijdstip i.p.v. 6x (1x per kanaal).
+            for (let m = 0; m <= 1440; m += 15) {
+                let nu = (m === 1440) ? 0 : m; // Rol klokslag middernacht (1440) terug naar nul om wiskunde simpel te houden
 
-                    let sp_prev = sorted[sorted.length - 1]; // Assumeer eerst dat het vorige punt 'gisterenavond' was
-                    let sp_next = sorted[0];                 // Assumeer dat het volgende punt de eerste van 'vandaag' is
+                const frame = interpolateFrame(sorted, nu);
 
-                    // Doorzoek alle bekende setpoints om de 2 buur-punten van DIT exacte moment (m) te vinden
-                    for (let i = 0; i < sorted.length; i++) {
-                        if (sorted[i].time <= nu) {
-                            sp_prev = sorted[i];
-                            sp_next = sorted[(i + 1) % sorted.length]; // Gebruik modulo (%) om weer bij index 0 te beginnen als we op het eind zijn
-                        }
-                    }
-
-                    let _T1 = sp_prev.time;
-                    let _T2 = sp_next.time;
-                    
-                    // Wraparound reparatie: Als het vorige punt b.v. op 23:00 lag, en de volgende op 01:00...
-                    // ...Trek er dan 24 uur (1440) vanaf of tel het erbij op, zodat we gewoon vloeiend een lijn over 00:00 kunnen trekken.
-                    if (_T1 > nu && _T1 >= _T2) _T1 -= 1440;
-                    if (_T2 < nu || _T2 <= _T1) _T2 += 1440;
-
-                    let val = sp_prev.values[c]; // Standaardwaarde is de startwaarde
-                    if (_T1 !== _T2) {
-                        // Magische formule voor rechte lijn tussen 2 punten (y = ax + b)
-                        val = sp_prev.values[c] + (sp_next.values[c] - sp_prev.values[c]) * (nu - _T1) / (_T2 - _T1);
-                    }
-                    lineData.push({ x: m, y: Math.max(0, Math.min(100, val)) }); // Voeg toe aan verzameling
+                for (let c = 0; c < 6; c++) {
+                    const val = interpolateValue(frame, nu, c);
+                    allLineData[c].push({ x: m, y: Math.max(0, Math.min(100, val)) }); // Voeg toe aan verzameling
                 }
-                allLineData.push(lineData);
+            }
 
-                // Nu genereren we in een tweede laag uitsluitend de locaties van de 6 harde instelpunten
+            // Nu genereren we in een tweede laag uitsluitend de locaties van de 6 harde instelpunten
+            for (let c = 0; c < 6; c++) {
                 const handleData = setpointsData.map((sp, idx) => ({
                     x: getMins(sp.time),
                     y: sp.values[c],
@@ -805,7 +1357,7 @@
                     pwmChart.data.datasets[c].data = allLineData[c];
                     pwmChart.data.datasets[c].label = lblVal || `Ch${c+1}`; // Oude, schone label
                     pwmChart.data.datasets[c].borderColor = cColor;
-                    pwmChart.data.datasets[c].backgroundColor = cColor + '33'; // De 33 in Hex betekent dat het vlak 20% dekkend ('doorzichtig') wordt ingekleurd
+                    pwmChart.data.datasets[c].backgroundColor = withAlpha(cColor, 0.2); // 20% dekkend ('doorzichtig')
 
                     // Update Bolletjes
                     pwmChart.data.datasets[c + 6].data = allHandleData[c];
@@ -827,7 +1379,7 @@
                         label: lblVal || `Ch${c+1}`,
                         data: allLineData[c],
                         borderColor: cColor,
-                        backgroundColor: cColor + '33',
+                        backgroundColor: withAlpha(cColor, 0.2),
                         tension: 0.1, // Maakt hele lichte afbuigingen (i.p.v. 100% harde vierkante hoeken)
                         pointRadius: 0, // Deze lijn zélf heeft geen bolletjes...
                         hitRadius: 0,   // ...en mag ook niet per ongeluk gepakt worden met de muis!
@@ -890,6 +1442,13 @@
                                 }
                             },
                             tooltip: {
+                                // De bolletjes-dataset (type 'scatter') zit op exact dezelfde
+                                // (x,y)-positie als de lijn-dataset bij elk instelpunt. Met
+                                // interaction.mode 'nearest' levert dat op een marker dus TWEE
+                                // tooltip-regels met dezelfde label op (lijn: "Label: 36",
+                                // bolletje: "Label: (1320, 36)") — filter de bolletjes-regel
+                                // eruit, de lijn-regel dekt dezelfde info al af.
+                                filter: (tooltipItem) => tooltipItem.dataset.type !== 'scatter',
                                 callbacks: {
                                     // Converteer X-minuten terug naar 'HH:MM' voor een leesbare popup tooltip
                                     title: (context) => {
@@ -907,7 +1466,7 @@
                                 type: 'linear', // Lineaire (Wiskundige) as, anders is slepen onmogelijk
                                 min: 0,
                                 max: 1440, // 24 uur = 1440 minuten
-                                title: { display: true, text: 'Tijdstip (HH:MM)' },
+                                title: { display: true, text: 'Time of day (HH:MM)' },
                                 ticks: {
                                     stepSize: 60, // Teken een grijs raster-streepje om het uur
                                     callback: (value) => {
@@ -933,12 +1492,12 @@
         // Controleer of de browser Service Workers ondersteunt
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js')
+                navigator.serviceWorker.register('/sw.js')
                     .then(reg => {
-                        logToTerminal('INFO', 'PWA Service Worker succesvol geregistreerd. App is klaar voor offline gebruik.');
+                        logToTerminal('INFO', 'PWA Service Worker successfully registered. App is ready for offline use.');
                     })
                     .catch(err => {
-                        logToTerminal('ERR', `PWA Service Worker registratie gefaald: ${err.message}`);
+                        logToTerminal('ERR', `PWA Service Worker registration failed: ${err.message}`);
                     });
             });
         }
