@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://www.biolights.nl/schema/profile-v1.json",
+  "title": "BioLightsProfile",
+  "description": "24-hour horticultural LED PWM light schedule for the 6-channel BioLights controller (www.biolights.nl). Points are linearly interpolated across the 24-hour cycle with midnight wrap-around.",
+  "type": "object",
+  "required": ["labels", "setpoints"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "string",
+      "enum": ["1.0", "1.1"],
+      "description": "Optional schema version identifier."
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Optional horticultural context displayed in the BioLights Communication Terminal when loaded.",
+      "additionalProperties": true,
+      "properties": {
+        "crop": {
+          "type": "string",
+          "description": "Target crop or plant species (e.g. 'Romaine lettuce seedlings', 'Basil vegetative')."
+        },
+        "growth_phase": {
+          "type": "string",
+          "description": "Growth stage (e.g. 'Propagation / Seedling', 'Vegetative', 'Flowering / Fruiting')."
+        },
+        "target_dli": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 60,
+          "description": "Intended Daily Light Integral in mol/m²/day (assuming calibrated fixture PPFD)."
+        },
+        "photoperiod_hours": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 24,
+          "description": "Intended daily light duration in hours."
+        },
+        "author": {
+          "type": "string",
+          "description": "Generator or author of the profile."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Short explanation of the photobiological strategy (e.g. sunrise/sunset ramp, EOD far-red, UV stress)."
+        }
+      }
+    },
+    "labels": {
+      "type": "array",
+      "description": "Exactly 6 channel names corresponding to hardware outputs GPIO1 through GPIO6. Recognised colour keywords (e.g. 'UV', 'Deep Blue', 'Blue', 'White', 'Hyper Red', 'IR', 'Green') or numeric wavelengths in nm (e.g. '450', '660', '730') automatically set the chart colour.",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 24
+      }
+    },
+    "setpoints": {
+      "type": "array",
+      "description": "Exactly 6 time setpoints across the 24-hour day (00:00 to 23:59). The controller sorts setpoints chronologically and linearly interpolates PWM duty cycles between consecutive setpoints, wrapping around midnight between the last and first setpoint.",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "required": ["time", "values"],
+        "additionalProperties": false,
+        "properties": {
+          "time": {
+            "type": "string",
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "description": "24-hour timestamp in HH:MM format (00:00 to 23:59)."
+          },
+          "values": {
+            "type": "array",
+            "description": "6 integer PWM duty cycle percentages (0 to 100) corresponding to the 6 channels in 'labels'.",
+            "minItems": 6,
+            "maxItems": 6,
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -4,7 +4,10 @@
 # warranty of any kind, and no rights can be derived from it. The source code
 # of this site and its firmware may be freely used.
 #
-# See /llms.txt for a longer, AI-oriented description of this site.
+# AI / LLM Integration:
+# - LLM documentation: https://www.biolights.nl/llms.txt
+# - Profile JSON Schema: https://www.biolights.nl/schema/profile-v1.json
+# - Deep Link preview format: https://www.biolights.nl/#profile=<url-encoded-or-base64-json>
 
 User-agent: *
 Allow: /

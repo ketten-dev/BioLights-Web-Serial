@@ -13,12 +13,55 @@
       See /llms.txt for a longer, AI-oriented description, and /robots.txt for crawler rules.
     -->
 	<link rel="manifest" href="/manifest.json">
+	<link rel="alternate" type="text/markdown" href="/llms.txt" title="LLM & AI Agent Documentation">
+	<link rel="describedby" type="application/schema+json" href="/schema/profile-v1.json">
 	<meta name="theme-color" content="#1e293b">
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "BioLights PWM Controller",
+      "url": "https://www.biolights.nl/",
+      "applicationCategory": "HardwareApplication",
+      "operatingSystem": "Chrome, Edge, Opera (Web Serial API)",
+      "description": "Web configurator for the 6-channel BioLights horticultural LED PWM controller (by Ketten, www.ketten.nl). Accepts AI-generated 24-hour light schedules (6 channels x 6 setpoints) via URL deep link (#profile=<url-encoded-or-base64-json>), clipboard paste (Ctrl+V), or JSON file upload. Human-in-the-loop required: the user must flash pwm_controller.uf2 and click Connect via Serial + Sync Time & Setpoints themselves.",
+      "documentation": "https://www.biolights.nl/llms.txt",
+      "supportingData": "https://www.biolights.nl/schema/profile-v1.json",
+      "potentialAction": {
+        "@type": "ViewAction",
+        "name": "Load Suggested Light Profile into Preview",
+        "target": "https://www.biolights.nl/#profile={profile_json}"
+      }
+    }
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 	<link rel="icon" type="image/svg" href="favicon.svg">
 </head>
 <body class="bg-gray-100 text-gray-800 p-2 md:p-6 font-sans">
+
+    <aside id="llm-documentation" class="sr-only" aria-label="LLM and AI Agent Instructions">
+        <h1>BioLights LLM &amp; AI Agent Integration Guide (www.biolights.nl)</h1>
+        <p>BioLights is a 6-channel horticultural LED PWM controller web app. Full machine-readable docs: https://www.biolights.nl/llms.txt | JSON Schema: https://www.biolights.nl/schema/profile-v1.json</p>
+        <h2>What an LLM Can and Cannot Do (Human-in-the-Loop)</h2>
+        <ul>
+            <li>CAN DO: Suggest a 24-hour light recipe as a clickable deep link (https://www.biolights.nl/#profile=&lt;url-encoded-or-base64-json&gt;) and/or a raw JSON code block.</li>
+            <li>CANNOT DO: Flash firmware (.uf2) or write to hardware over USB automatically. The user must download pwm_controller.uf2 themselves, and must click "Connect via Serial" and "Sync Time &amp; Setpoints" in their browser to apply a suggested schedule to the hardware.</li>
+        </ul>
+        <h2>Profile JSON Structure (6 Channels x 6 Setpoints)</h2>
+        <p>A valid BioLights profile is a JSON object with:</p>
+        <ul>
+            <li>"labels": array of 6 strings for GPIO1..GPIO6 (default: ["UV", "Deep Blue", "Blue", "White", "Hyper Red", "IR"]). Colour keywords or numeric wavelengths in nm (e.g. "450", "660", "730") set chart colours automatically.</li>
+            <li>"setpoints": array of 6 objects, each with "time" ("HH:MM" 24-hour format, 00:00-23:59) and "values" (array of 6 integers 0..100 for PWM duty cycle %). The controller linearly interpolates between chronologically sorted setpoints and wraps around midnight. Use 0% setpoints at sunrise start and sunset end to keep lights off at night.</li>
+            <li>"metadata" (optional): { "crop", "growth_phase", "target_dli", "photoperiod_hours", "notes" } — displayed in the Communication Terminal when loaded.</li>
+        </ul>
+        <h2>How Users Load Your Suggestion (Zero Extra UI Steps)</h2>
+        <ol>
+            <li>Click your deep link: https://www.biolights.nl/#profile=%7B%22labels%22%3A%5B%22UV%22%2C%22Deep%20Blue%22%2C%22Blue%22%2C%22White%22%2C%22Hyper%20Red%22%2C%22IR%22%5D%2C%22setpoints%22%3A%5B%7B%22time%22%3A%2206%3A00%22%2C%22values%22%3A%5B0%2C0%2C0%2C0%2C0%2C0%5D%7D%2C%7B%22time%22%3A%2208%3A00%22%2C%22values%22%3A%5B0%2C30%2C40%2C50%2C45%2C5%5D%7D%2C%7B%22time%22%3A%2210%3A00%22%2C%22values%22%3A%5B5%2C45%2C55%2C75%2C70%2C10%5D%7D%2C%7B%22time%22%3A%2217%3A00%22%2C%22values%22%3A%5B5%2C45%2C55%2C75%2C70%2C10%5D%7D%2C%7B%22time%22%3A%2220%3A30%22%2C%22values%22%3A%5B0%2C20%2C25%2C40%2C50%2C15%5D%7D%2C%7B%22time%22%3A%2222%3A00%22%2C%22values%22%3A%5B0%2C0%2C0%2C0%2C0%2C0%5D%7D%5D%7D (both URL-encoded JSON and Base64/Base64URL after #profile= are supported).</li>
+            <li>Or copy your JSON response and press Ctrl+V (Cmd+V) anywhere on www.biolights.nl, or click Load to open a saved .json file.</li>
+            <li>Review the preview in the Spectrum Editor and click "Connect via Serial" then "Sync Time &amp; Setpoints" to upload to the controller.</li>
+        </ol>
+    </aside>
     
     <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
         
@@ -47,7 +90,7 @@
             <button id="btnConnectSerial" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 font-medium text-sm transition-colors duration-300">Connect via Serial</button>
             <button id="btnSaveConfig" class="bg-slate-600 text-white px-4 py-2 rounded hover:bg-slate-700 font-medium text-sm transition-colors duration-300">Save</button>
             <button id="btnLoadConfig" class="bg-slate-600 text-white px-4 py-2 rounded hover:bg-slate-700 font-medium text-sm transition-colors duration-300">Load</button>
-            <input type="file" id="fileInputConfig" accept=".json" class="hidden">
+            <input type="file" id="fileInputConfig" accept=".json,.txt,.md" class="hidden">
 
             <button id="btnSync" class="bg-emerald-600 text-white px-4 py-2 rounded hover:bg-emerald-700 font-medium text-sm transition-colors duration-300" disabled>Sync Time & Setpoints</button>
             <button id="btnRead" class="bg-amber-500 text-white px-4 py-2 rounded hover:bg-amber-600 font-medium text-sm transition-colors duration-300" disabled>Read from Hardware</button>
@@ -146,6 +189,7 @@
     <script src="js/sensor-mock.js"></script>
     <script src="js/wavelength-color.js"></script>
     <script src="js/spectrum-curve.js"></script>
+    <script src="js/profile-loader.js"></script>
     <script>
         // --- 1. GLOBALE VARIABELEN ---
         // Deze variabelen onthouden de verbinding en de data zolang de pagina open staat
@@ -786,6 +830,94 @@
             fileInput.click();
         });
 
+        // Centrale functie om een profiel (uit bestand, klembord of #profile=... URL) te valideren en in de preview te zetten.
+        // Schrijft NOOIT automatisch naar de hardware; de gebruiker klikt zelf op "Sync Time & Setpoints".
+        function applyLoadedProfile(rawInput, sourceLabel = 'profile') {
+            const currentLabels = [];
+            for (let i = 0; i < 6; i++) {
+                currentLabels.push(document.getElementById(`lblCh${i}`).value || `Ch${i + 1}`);
+            }
+
+            const normalized = validateAndNormalizeProfile(rawInput, currentLabels);
+
+            for (let i = 0; i < 6; i++) {
+                document.getElementById(`lblCh${i}`).value = normalized.labels[i];
+            }
+            setpointsData = normalized.setpoints;
+
+            renderTable();
+            updateChart();
+            updateAmbientBackground();
+
+            logToTerminal('INFO', `Configuration loaded (${sourceLabel}). Preview updated — click "Sync Time & Setpoints" to upload to hardware.`);
+            normalized.infoMessages.forEach(msg => logToTerminal('INFO', msg));
+            normalized.warnings.forEach(warn => logToTerminal('INFO', `⚠️ ${warn}`));
+        }
+
+        // Lees een voorgesteld profiel direct uit de URL (#profile=... of ?profile=...)
+        function checkUrlForProfile() {
+            let rawParam = null;
+            const hash = window.location.hash || '';
+            if (hash.startsWith('#profile=')) {
+                rawParam = hash.slice('#profile='.length);
+            } else {
+                const params = new URLSearchParams(window.location.search);
+                if (params.has('profile')) {
+                    rawParam = params.get('profile');
+                }
+            }
+            if (!rawParam) return;
+
+            try {
+                const decodedObj = decodeProfileParam(rawParam);
+                applyLoadedProfile(decodedObj, 'URL deep link');
+                // Schoon de URL op zodat herladen niet opnieuw dezelfde hash triggert
+                if (window.history && window.history.replaceState) {
+                    window.history.replaceState(null, '', window.location.pathname);
+                }
+            } catch (error) {
+                logToTerminal('ERR', `Invalid profile in URL: ${error.message}`);
+            }
+        }
+
+        window.addEventListener('hashchange', checkUrlForProfile);
+
+        // Smart Paste (Ctrl+V / Cmd+V): plak een JSON-profiel of AI-antwoord direct op de pagina zonder extra knoppen
+        document.addEventListener('paste', (event) => {
+            const active = document.activeElement;
+            if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT' || active.isContentEditable)) {
+                return; // Laat regulier plakken in invoervelden ongemoeid
+            }
+            const text = event.clipboardData ? event.clipboardData.getData('text') : '';
+            if (!text || (!text.includes('{') && !text.includes('setpoints'))) return;
+
+            try {
+                applyLoadedProfile(text, 'clipboard paste');
+                event.preventDefault();
+            } catch (error) {
+                logToTerminal('ERR', `Clipboard paste error: ${error.message}`);
+            }
+        });
+
+        // Drag & Drop ondersteuning voor .json bestanden op het venster
+        window.addEventListener('dragover', (event) => {
+            event.preventDefault();
+        });
+        window.addEventListener('drop', (event) => {
+            event.preventDefault();
+            const file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    applyLoadedProfile(e.target.result, `dropped file: ${file.name}`);
+                } catch (error) {
+                    logToTerminal('ERR', `Error loading dropped file (${file.name}): ${error.message}`);
+                }
+            };
+            reader.readAsText(file);
+        });
+
         // Zodra je een bestand hebt gekozen op je computer, gaat deze code draaien
         fileInput.addEventListener('change', (event) => {
             const file = event.target.files[0];
@@ -794,26 +926,7 @@
             const reader = new FileReader();
             reader.onload = (e) => {
                 try {
-                    // Probeer de opgeslagen tekst weer om te toveren naar bruikbare code (JSON object)
-                    const config = JSON.parse(e.target.result);
-                    
-                    // Simpele veiligheidscheck: Zitten labels en setpoints er wel in?
-                    if (config.labels && config.setpoints) {
-                        // Vul labels
-                        for(let i=0; i<6; i++) {
-                            if(config.labels[i] !== undefined) {
-                                document.getElementById(`lblCh${i}`).value = config.labels[i];
-                            }
-                        }
-                        // Vul matrix
-                        setpointsData = config.setpoints;
-                        // Herbouw de schermen
-                        renderTable();
-                        updateChart();
-                        logToTerminal('INFO', `Configuration loaded: ${file.name}`);
-                    } else {
-                        logToTerminal('ERR', 'Invalid configuration file. Unknown data structure.');
-                    }
+                    applyLoadedProfile(e.target.result, `file: ${file.name}`);
                 } catch (error) {
                     logToTerminal('ERR', `Error loading file: ${error.message}`);
                 }
@@ -1487,7 +1600,8 @@
         // --- APPLICATIE START ---
         // Activeer direct de twee render-functies zodat je geen leeg scherm hebt als je de HTML pagina laadt!
         renderTable();
-        updateChart(); 
+        updateChart();
+        checkUrlForProfile(); 
 		// --- NIEUW: PWA Service Worker Registratie ---
         // Controleer of de browser Service Workers ondersteunt
         if ('serviceWorker' in navigator) {

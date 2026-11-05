@@ -1,5 +1,5 @@
 // Versienummer van de cache. Wijzig dit nummer (bv. v2) als je de HTML-code update!
-const CACHE_NAME = 'biolights-cache-v8';
+const CACHE_NAME = 'biolights-cache-v9';
 
 // De lijst met bestanden die ALTIJD offline beschikbaar moeten zijn
 const ASSETS_TO_CACHE = [
@@ -8,11 +8,15 @@ const ASSETS_TO_CACHE = [
   '/manifest.json',
   '/favicon.svg',
   '/pwm_controller.uf2',
+  '/llms.txt',
+  '/schema/profile-v1.json',
+  '/biolights_default_config.json',
   '/js/interpolation.js',
   '/js/sensor-protocol.js',
   '/js/sensor-mock.js',
   '/js/wavelength-color.js',
   '/js/spectrum-curve.js',
+  '/js/profile-loader.js',
   '/mock-sensor-scenario.json',
   'https://cdn.tailwindcss.com',
   'https://cdn.jsdelivr.net/npm/chart.js'

@@ -1,0 +1,116 @@
+# BioLights PWM Controller — Documentation for LLMs & AI Agents
+
+> BioLights (`https://www.biolights.nl`) is a browser-based configurator for the BioLights 6-channel horticultural LED PWM controller (a product of Ketten, `https://www.ketten.nl`). It designs 24-hour circadian light schedules and synchronizes them to the microcontroller over USB via the Web Serial API.
+
+## 1. What an LLM Can and Cannot Do (Capabilities & Boundaries)
+
+### What you CAN do as an LLM / AI Agent:
+- **Generate complete 24-hour light recipes** tailored to a user's crop, growth stage, and photobiological goals.
+- **Give the user a clickable Deep Link (`https://www.biolights.nl/#profile=...`)** that immediately opens BioLights with your suggested schedule loaded into the visual Spectrum Editor and Setpoint Matrix.
+- **Give the user a JSON block** that they can paste directly onto `https://www.biolights.nl` with `Ctrl+V` (`Cmd+V`), drag-and-drop as a `.json` file, or import via the **Load** button.
+
+### What you CANNOT do (Human-in-the-Loop Hardware Security):
+- **You cannot flash firmware remotely.** To install or update firmware, the user must click **Download .uf2** (`https://www.biolights.nl/pwm_controller.uf2`) and copy the file onto the controller's USB mass-storage drive (BOOTSEL mode) themselves.
+- **You cannot connect to USB or write to the hardware automatically.** Opening a Deep Link (`#profile=...`) or pasting JSON **only loads the suggestion into the web preview**. The user must review the schedule, click **Connect via Serial** (in Chrome, Edge, or Opera), and explicitly click **Sync Time & Setpoints** to upload the schedule to the hardware flash.
+
+---
+
+## 2. Hardware & Data Model (6 Channels × 6 Setpoints)
+
+1. **6 PWM Channels (`GPIO1` – `GPIO6`)**:
+   - Default channel labels: `["UV", "Deep Blue", "Blue", "White", "Hyper Red", "IR"]`
+   - Approximate spectral roles in the default 6-channel bar:
+     - `GPIO1` — **UV** (~385–395 nm UVA)
+     - `GPIO2` — **Deep Blue** (~450 nm, chlorophyll b / cryptochrome peak)
+     - `GPIO3` — **Blue** (~465–470 nm, stomatal opening / phototropism / compact morphology)
+     - `GPIO4` — **White** (broad full-spectrum PAR, ~400–700 nm, visual inspection & canopy penetration)
+     - `GPIO5` — **Hyper Red** (~660 nm, primary photosynthesis / chlorophyll a / phytochrome Pr→Pfr)
+     - `GPIO6` — **IR** (~730 nm Far-Red, Emerson enhancement effect, shade-avoidance / stem elongation, EOD-FR)
+   - Custom channel labels are supported: keywords (`UV`, `Deep Blue`, `Blue`, `White`, `Hyper Red`, `IR`, `Red`, `Green`, `Yellow`, `Orange`, `Purple`, `Cyan`) or numeric wavelengths in nm (e.g. `"450"`, `"660"`, `"730"`) automatically colour the chart lines.
+
+2. **6 Time Setpoints (24-Hour Linear Interpolation with Midnight Wrap-Around)**:
+   - A profile contains **exactly 6 setpoints** (`setpoints` array of length 6).
+   - Each setpoint has:
+     - `time`: `"HH:MM"` in 24-hour format (`"00:00"` to `"23:59"`).
+     - `values`: array of **6 integers** from `0` to `100` (PWM duty cycle `%` for `GPIO1`..`GPIO6`).
+   - **Important interpolation behaviour**:
+     - The controller sorts setpoints chronologically and **linearly interpolates** every channel between adjacent setpoints (including wrapping across midnight between the last setpoint of the day and the first setpoint of the next day).
+     - **To keep lights at 0% during the night**, bracket the photoperiod with two `0%` (or night-level) setpoints:
+       - Setpoint 1: Sunrise start (e.g. `"06:00"`, `[0, 0, 0, 0, 0, 0]`) — stays at 0% from Sunset end through the night until 06:00.
+       - Setpoint 2: Morning ramp / early phase (e.g. `"07:00"`)
+       - Setpoint 3: Midday / main photoperiod start (e.g. `"10:00"`)
+       - Setpoint 4: Main photoperiod end / afternoon (e.g. `"18:00"`)
+       - Setpoint 5: Evening / End-of-Day treatment (e.g. `"21:00"`)
+       - Setpoint 6: Sunset end / night start (e.g. `"22:00"`, `[0, 0, 0, 0, 0, 0]`) — ramps down to 0% at 22:00 and remains at 0% until Setpoint 1 (`"06:00"`).
+
+---
+
+## 3. JSON Schema & Format
+
+- Formal JSON Schema: `https://www.biolights.nl/schema/profile-v1.json`
+- Default example config: `https://www.biolights.nl/biolights_default_config.json`
+
+### Example Profile JSON
+```json
+{
+  "version": "1.0",
+  "metadata": {
+    "crop": "Romaine lettuce (transplants / young vegetative)",
+    "growth_phase": "Early Vegetative",
+    "target_dli": 14,
+    "photoperiod_hours": 16,
+    "author": "AI Assistant",
+    "notes": "16h photoperiod (06:00-22:00). Higher Blue:Red ratio for compact leaf morphology, zero UV/IR stress on young leaves."
+  },
+  "labels": ["UV", "Deep Blue", "Blue", "White", "Hyper Red", "IR"],
+  "setpoints": [
+    { "time": "06:00", "values": [0, 0, 0, 0, 0, 0] },
+    { "time": "07:30", "values": [0, 30, 40, 50, 45, 5] },
+    { "time": "10:00", "values": [5, 45, 55, 75, 70, 10] },
+    { "time": "17:00", "values": [5, 45, 55, 75, 70, 10] },
+    { "time": "20:30", "values": [0, 20, 25, 40, 50, 15] },
+    { "time": "22:00", "values": [0, 0, 0, 0, 0, 0] }
+  ]
+}
+```
+
+---
+
+## 4. How to Give a Suggestion to the User (Deep Link + Paste)
+
+Whenever a user asks you for a BioLights schedule, provide **both**:
+
+### A. A Clickable Deep Link (`#profile=...`)
+`https://www.biolights.nl` accepts a profile in the URL hash (`#profile=<payload>`) or query string (`?profile=<payload>`).
+The parser accepts **both** URL-encoded JSON and Base64 / Base64URL-encoded JSON:
+
+1. **URL-encoded JSON (Recommended when you do not have a Python/code-execution tool)**:
+   Encode the compact JSON after `#profile=`:
+   `https://www.biolights.nl/#profile=%7B%22labels%22%3A%5B%22UV%22%2C%22Deep%20Blue%22%2C%22Blue%22%2C%22White%22%2C%22Hyper%20Red%22%2C%22IR%22%5D%2C%22setpoints%22%3A%5B%7B%22time%22%3A%2206%3A00%22%2C%22values%22%3A%5B0%2C0%2C0%2C0%2C0%2C0%5D%7D%2C%7B%22time%22%3A%2207%3A30%22%2C%22values%22%3A%5B0%2C30%2C40%2C50%2C45%2C5%5D%7D%2C%7B%22time%22%3A%2210%3A00%22%2C%22values%22%3A%5B5%2C45%2C55%2C75%2C70%2C10%5D%7D%2C%7B%22time%22%3A%2217%3A00%22%2C%22values%22%3A%5B5%2C45%2C55%2C75%2C70%2C10%5D%7D%2C%7B%22time%22%3A%2220%3A30%22%2C%22values%22%3A%5B0%2C20%2C25%2C40%2C50%2C15%5D%7D%2C%7B%22time%22%3A%2222%3A00%22%2C%22values%22%3A%5B0%2C0%2C0%2C0%2C0%2C0%5D%7D%5D%7D`
+   *(Tip: Do not try to mentally Base64-encode JSON without a tool; use URL-encoded JSON instead so it never corrupts.)*
+
+2. **Base64 / Base64URL-encoded UTF-8 JSON (When using Python / Code Interpreter)**:
+   `https://www.biolights.nl/#profile=<base64-encoded-json>`
+
+### B. A Copy-Pasteable JSON Code Block
+Include the raw JSON in a ` ```json ... ``` ` code block and tell the user:
+1. Click the `#profile=...` link **or** copy the JSON block and press `Ctrl+V` (`Cmd+V`) directly on `https://www.biolights.nl` (or save as `.json` and click **Load**).
+2. Inspect the curve in the **Spectrum Editor** and check the **Communication Terminal** for profile notes.
+3. Connect the BioLights controller via USB, click **Connect via Serial**, and click **Sync Time & Setpoints** to write the schedule to the hardware.
+
+---
+
+## 5. Photobiological Guidelines for LLM Recipe Generation
+
+- **Seedlings / Rooting / Microgreens**:
+  - Moderate intensity (30–55% peak on White/Blue/Hyper Red), 16–18h photoperiod.
+  - Keep **UV** low (`0–5%`) and **IR (Far-Red)** low (`0–5%`) to prevent hypocotyl elongation (stretching/etiolation).
+- **Vegetative Leafy Greens & Herbs (Lettuce, Basil, Spinach)**:
+  - 14–18h photoperiod. Balanced Blue + White + Hyper Red (`50–85%` peak).
+  - Moderate UV (`0–15%` mid-day) can stimulate secondary metabolites (anthocyanins, phenolics, essential oils) and leaf thickness.
+- **Flowering / Fruiting Crops**:
+  - High **Hyper Red (660 nm)** (`70–100%`) and **White** (`70–90%`), supplemented with **IR (730 nm)** (`15–35%`) for Emerson enhancement of photosynthetic efficiency.
+- **Sunrise / Sunset & Slew Rate**:
+  - Ramp channels gradually over `30–90 minutes` at dawn and dusk rather than jumping from `0%` to `100%` in under 10 minutes (avoids both plant photo-oxidative shock and LED thermal shock).
+- **UV Safety**:
+  - Avoid sustained UV (`GPIO1`) above `30%` unless specifically requested for short mid-day hormetic UV treatments.
