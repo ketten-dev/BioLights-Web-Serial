@@ -608,16 +608,49 @@
         // getriggerd kan worden, zonder dat daar een eigen knop voor bestaat. Zelfde
         // routing als applySensorSetting(): Mock-modus gaat via de lokale simulator,
         // Live-modus gaat over de echte seriële verbinding. Zie docs/agent-operations.md.
+        let cachedDocsPromise = null;
+
+        // Haalt llms.txt op als enige centrale waarheid (Single Source of Truth) voor zowel de HELP-functie
+        // in de terminal als de #llm-documentation sectie in de DOM.
+        function getSingleSourceDocs() {
+            if (!cachedDocsPromise) {
+                cachedDocsPromise = fetch('llms.txt')
+                    .then(res => {
+                        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                        return res.text();
+                    })
+                    .then(text => {
+                        const aside = document.getElementById('llm-documentation');
+                        if (aside) {
+                            const pre = document.createElement('pre');
+                            pre.id = 'llm-full-reference';
+                            pre.textContent = text;
+                            aside.replaceChildren(pre);
+                        }
+                        return text;
+                    })
+                    .catch(() => {
+                        const aside = document.getElementById('llm-documentation');
+                        return aside ? aside.textContent.trim() : 'Documentation unavailable.';
+                    });
+            }
+            return cachedDocsPromise;
+        }
+
         function sendRawCommand() {
             const input = document.getElementById('txtRawCommand');
             const line = input.value.trim();
             if (!line) return;
 
-            // 1. Lokale AI / Profiel-suggestie commando's (vereisen GEEN seriële verbinding en schrijven NIET automatisch naar hardware)
+            // 1. Lokale AI / Profiel-suggestie & HELP commando's (vereisen GEEN seriële verbinding en schrijven NIET automatisch naar hardware)
             const upper = line.toUpperCase();
-            if (upper === 'HELP' || upper === '?') {
-                logToTerminal('INFO', 'Commands: PROFILE|06:00,0,0,0,0,0,0|...|LABELS,UV,Deep Blue,Blue,White,Hyper Red,IR (load suggestion into preview), EXPORT (print current profile command), or paste JSON. Click "Sync Time & Setpoints" to write to hardware.');
+            if (upper === 'HELP' || upper === '?' || upper.startsWith('HELP ')) {
+                const topic = upper.startsWith('HELP ') ? line.slice(5).trim() : '';
                 input.value = '';
+                getSingleSourceDocs().then(docsText => {
+                    const helpOutput = formatHelpFromDocs(docsText, topic);
+                    logToTerminal('INFO', `=== BioLights Reference Guide ${topic ? `(${topic.toUpperCase()}) ` : ''}[Source: /llms.txt] ===\n${helpOutput}\n=== Tip: Type HELP COMMANDS, HELP BUTTONS, HELP UF2, or HELP AI for specific sections ===`);
+                });
                 return;
             }
             if (upper === 'EXPORT' || upper === 'GET_PROFILE') {
@@ -1644,7 +1677,9 @@
         // Activeer direct de twee render-functies zodat je geen leeg scherm hebt als je de HTML pagina laadt!
         renderTable();
         updateChart();
-        checkUrlForProfile(); 
+        checkUrlForProfile();
+        getSingleSourceDocs();
+        logToTerminal('INFO', 'BioLights ready. Type HELP in the Raw command box below for commands, button guide, .uf2 firmware info, and AI recipe syntax.'); 
 		// --- NIEUW: PWA Service Worker Registratie ---
         // Controleer of de browser Service Workers ondersteunt
         if ('serviceWorker' in navigator) {

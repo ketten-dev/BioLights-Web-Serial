@@ -328,6 +328,47 @@ function validateAndNormalizeProfile(rawInput, fallbackLabels = ['UV', 'Deep Blu
     };
 }
 
+// Filtert llms.txt (de single source of truth voor zowel LLM's als gebruikers) op een optioneel
+// onderwerp voor weergave in de Communication Terminal via het HELP commando.
+function formatHelpFromDocs(markdownText, topic = '') {
+    if (!markdownText || typeof markdownText !== 'string') {
+        return 'Reference guide is empty.';
+    }
+
+    const cleanTopic = (topic || '').trim().toUpperCase();
+    const sections = markdownText.split(/\n(?=##\s+)/);
+
+    const topicKeywords = {
+        COMMANDS: ['2.', 'COMMANDS', 'RAW COMMAND'],
+        CMD: ['2.', 'COMMANDS', 'RAW COMMAND'],
+        BUTTONS: ['3.', 'BUTTONS', 'INTERFACE', 'CONTROLS'],
+        UI: ['3.', 'BUTTONS', 'INTERFACE', 'CONTROLS'],
+        UF2: ['4.', 'FIRMWARE', 'UF2', 'HARDWARE BEHAVIOUR'],
+        FIRMWARE: ['4.', 'FIRMWARE', 'UF2', 'HARDWARE BEHAVIOUR'],
+        AI: ['1.', '2.', '5.', '6.', 'CAPABILITIES', 'PHOTOBIOLOGICAL'],
+        LLM: ['1.', '2.', '5.', '6.', 'CAPABILITIES', 'PHOTOBIOLOGICAL']
+    };
+
+    let selectedSections = sections;
+    if (cleanTopic && cleanTopic !== 'ALL') {
+        const keywords = topicKeywords[cleanTopic] || [cleanTopic];
+        const matched = sections.filter((sec, idx) => {
+            if (idx === 0) return false;
+            const firstLine = (sec.split('\n')[0] || '').toUpperCase();
+            return keywords.some(k => firstLine.includes(k));
+        });
+        if (matched.length > 0) {
+            selectedSections = [sections[0], ...matched];
+        }
+    }
+
+    return selectedSections
+        .join('\n\n')
+        .replace(/```[a-zA-Z0-9_-]*\n?/g, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
+
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         isPipeProfileCommand,
@@ -335,6 +376,7 @@ if (typeof module !== 'undefined' && module.exports) {
         formatProfileCommand,
         extractJsonFromText,
         decodeProfileParam,
-        validateAndNormalizeProfile
+        validateAndNormalizeProfile,
+        formatHelpFromDocs
     };
 }
