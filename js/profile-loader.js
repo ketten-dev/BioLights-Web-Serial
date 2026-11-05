@@ -1,15 +1,118 @@
 // Parser, validator en fotobiologische safety-checks voor BioLights profielen.
 // Ondersteunt:
-// 1. Directe JSON, Markdown codeblocks (```json ... ```) en vrije AI-chattekst met JSON erin.
-// 2. URL Deep Links (#profile=... of ?profile=...) in zowel URL-encoded JSON als Base64 / Base64URL.
-// 3. Normalisatie naar de vaste 6x6 BioLights hardware-matrix (6 kanalen x 6 setpoints) + veiligheidswaarschuwingen.
+// 1. Compacte éénregelige commando-syntax voor het Raw Command veld:
+//    - PROFILE|06:00,0,0,0,0,0,0|08:00,0,30,40,50,45,5|...|LABELS,UV,Deep Blue,Blue,White,Hyper Red,IR
+//    - of het native protocolformaat: SYNC|<mins>|360,0,0,0,0,0,0|...|LABELS,...
+//    - of met tijd in HH:MM én minuten door elkaar.
+// 2. Directe JSON, Markdown codeblocks (```json ... ```) en vrije AI-chattekst met JSON erin.
+// 3. URL Deep Links (#profile=... of ?profile=...) in zowel pipe-command syntax, URL-encoded JSON als Base64 / Base64URL.
+// 4. Normalisatie naar de vaste 6x6 BioLights hardware-matrix (6 kanalen x 6 setpoints) + veiligheidswaarschuwingen.
 
-function extractJsonFromText(input) {
+function isPipeProfileCommand(input) {
+    if (typeof input !== 'string') return false;
+    const trimmed = input.trim();
+    return /^(PROFILE|RECIPE|PREVIEW|LOAD|SYNC|STATE)\|/i.test(trimmed);
+}
+
+function parsePipeProfileCommand(line, fallbackLabels = ['UV', 'Deep Blue', 'Blue', 'White', 'Hyper Red', 'IR']) {
+    const parts = line.trim().split('|').map(p => p.trim()).filter(Boolean);
+    if (parts.length < 2) {
+        throw new Error('Invalid command format. Expected: PROFILE|06:00,0,0,0,0,0,0|...|LABELS,UV,Deep Blue,Blue,White,Hyper Red,IR');
+    }
+
+    const labels = [...fallbackLabels];
+    let hasExplicitLabels = false;
+    const setpoints = [];
+    const metadata = {};
+
+    for (let i = 1; i < parts.length; i++) {
+        const seg = parts[i];
+        const upper = seg.toUpperCase();
+
+        if (upper.startsWith('LABELS,') || upper.startsWith('LABELS:')) {
+            const rawLabels = seg.slice(7).split(',');
+            hasExplicitLabels = true;
+            for (let c = 0; c < 6; c++) {
+                if (rawLabels[c] !== undefined && rawLabels[c].trim() !== '') {
+                    labels[c] = rawLabels[c].trim();
+                }
+            }
+            continue;
+        }
+
+        if (upper.startsWith('TIME,')) {
+            continue; // Negeer losse TIME,<mins> uit een STATE|-regel bij preview-inladen
+        }
+
+        if (upper.startsWith('CROP,') || upper.startsWith('CROP:')) {
+            metadata.crop = seg.slice(5).trim();
+            continue;
+        }
+
+        if (upper.startsWith('NOTE,') || upper.startsWith('NOTE:') || upper.startsWith('NOTES,') || upper.startsWith('NOTES:')) {
+            metadata.notes = seg.slice(seg.indexOf(',') !== -1 ? seg.indexOf(',') + 1 : seg.indexOf(':') + 1).trim();
+            continue;
+        }
+
+        const tokens = seg.split(',').map(t => t.trim());
+        // Als het het eerste blok na SYNC| is en slechts 1 getal bevat (systeemtijd in minuten, bv. SYNC|720|...), sla die over
+        if (i === 1 && tokens.length === 1 && /^\d+$/.test(tokens[0])) {
+            continue;
+        }
+
+        if (tokens.length >= 7) {
+            const timeToken = tokens[0];
+            let formattedTime = null;
+
+            if (/^([0-1]?\d|2[0-3]):([0-5]\d)$/.test(timeToken)) {
+                const [hh, mm] = timeToken.split(':');
+                formattedTime = `${hh.padStart(2, '0')}:${mm}`;
+            } else if (/^\d+$/.test(timeToken)) {
+                const totalMins = Math.max(0, Math.min(1439, parseInt(timeToken, 10)));
+                const hh = String(Math.floor(totalMins / 60)).padStart(2, '0');
+                const mm = String(totalMins % 60).padStart(2, '0');
+                formattedTime = `${hh}:${mm}`;
+            } else {
+                throw new Error(`Invalid time "${timeToken}" in segment "${seg}". Use HH:MM (e.g. 06:00) or minutes (0-1439).`);
+            }
+
+            const values = [];
+            for (let c = 0; c < 6; c++) {
+                const v = Number(tokens[c + 1]);
+                if (!Number.isFinite(v)) {
+                    throw new Error(`Invalid channel value "${tokens[c + 1]}" at ${formattedTime}.`);
+                }
+                values.push(Math.round(v));
+            }
+            setpoints.push({ time: formattedTime, values });
+        }
+    }
+
+    if (setpoints.length === 0) {
+        throw new Error('No valid setpoints found in command. Expected segments like |06:00,0,0,0,0,0,0|.');
+    }
+
+    const result = { setpoints };
+    if (hasExplicitLabels) {
+        result.labels = labels;
+    }
+    if (Object.keys(metadata).length > 0) {
+        result.metadata = metadata;
+    }
+    return result;
+}
+
+function formatProfileCommand(labels, setpoints) {
+    const spSegments = setpoints.map(sp => `${sp.time},${sp.values.join(',')}`).join('|');
+    return `PROFILE|${spSegments}|LABELS,${labels.join(',')}`;
+}
+
+function extractJsonFromText(input, fallbackLabels) {
     if (input && typeof input === 'object') {
         return input;
     }
     if (typeof input !== 'string') {
-        throw new Error('Profile input must be a JSON string or object.');
+        throw new Error('Profile input must be a command string, JSON string, or object.');
     }
 
     let text = input.trim();
@@ -18,46 +121,55 @@ function extractJsonFromText(input) {
     }
 
     // 1. Strip markdown code fences (```json ... ``` of ``` ... ```)
-    const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    const fenceMatch = text.match(/```(?:[a-zA-Z0-9_-]+)?\s*([\s\S]*?)```/);
     if (fenceMatch && fenceMatch[1]) {
         text = fenceMatch[1].trim();
     }
 
-    // 2. Probeer direct te parsen
+    // 2. Check of de tekst een PROFILE|... of SYNC|... commando bevat
+    if (isPipeProfileCommand(text)) {
+        return parsePipeProfileCommand(text, fallbackLabels);
+    }
+    const pipeLineMatch = text.match(/(?:^|\n)\s*((?:PROFILE|RECIPE|PREVIEW|SYNC)\s*\|[^\r\n]+)/i);
+    if (pipeLineMatch && pipeLineMatch[1]) {
+        return parsePipeProfileCommand(pipeLineMatch[1].trim(), fallbackLabels);
+    }
+
+    // 3. Probeer direct als JSON te parsen
     try {
         return JSON.parse(text);
     } catch (_) {
-        // 3. Als er nog conversatietekst omheen staat: zoek het buitenste { ... } blok
+        // 4. Als er nog conversatietekst omheen staat: zoek het buitenste { ... } blok
         const firstBrace = text.indexOf('{');
         const lastBrace = text.lastIndexOf('}');
         if (firstBrace !== -1 && lastBrace > firstBrace) {
             const candidate = text.slice(firstBrace, lastBrace + 1);
             return JSON.parse(candidate);
         }
-        throw new Error('Could not parse valid JSON from input.');
+        throw new Error('Could not parse valid PROFILE| command or JSON from input.');
     }
 }
 
-function decodeProfileParam(rawParam) {
+function decodeProfileParam(rawParam, fallbackLabels) {
     if (!rawParam || typeof rawParam !== 'string') {
         throw new Error('Empty profile parameter in URL.');
     }
 
     let cleaned = rawParam.trim();
 
-    // 1. Probeer eerst URL-decoded tekst (werkt direct voor ?profile=%7B... of #profile={"labels":...})
+    // 1. Probeer eerst URL-decoded tekst (werkt direct voor #profile=PROFILE|... of #profile=%7B...)
     try {
-        const uriDecoded = decodeURIComponent(cleaned);
-        if (uriDecoded.trim().startsWith('{')) {
-            return extractJsonFromText(uriDecoded);
+        const uriDecoded = decodeURIComponent(cleaned).trim();
+        if (uriDecoded.startsWith('{') || isPipeProfileCommand(uriDecoded)) {
+            return extractJsonFromText(uriDecoded, fallbackLabels);
         }
-        cleaned = uriDecoded.trim();
+        cleaned = uriDecoded;
     } catch (_) {
         // Negeer als decodeURIComponent faalt op ruwe tekens
     }
 
-    if (cleaned.startsWith('{')) {
-        return extractJsonFromText(cleaned);
+    if (cleaned.startsWith('{') || isPipeProfileCommand(cleaned)) {
+        return extractJsonFromText(cleaned, fallbackLabels);
     }
 
     // 2. Anders: Base64 of Base64URL (vervang '-' door '+' en '_' door '/', vul '=' padding aan)
@@ -72,13 +184,13 @@ function decodeProfileParam(rawParam) {
         bytes[i] = binaryStr.charCodeAt(i);
     }
     const utf8Text = new TextDecoder('utf-8').decode(bytes);
-    return extractJsonFromText(utf8Text);
+    return extractJsonFromText(utf8Text, fallbackLabels);
 }
 
 function validateAndNormalizeProfile(rawInput, fallbackLabels = ['UV', 'Deep Blue', 'Blue', 'White', 'Hyper Red', 'IR']) {
-    const obj = extractJsonFromText(rawInput);
+    const obj = extractJsonFromText(rawInput, fallbackLabels);
     if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
-        throw new Error('Profile root must be a JSON object.');
+        throw new Error('Profile root must be an object or PROFILE| command.');
     }
 
     if (!Array.isArray(obj.setpoints) || obj.setpoints.length === 0) {
@@ -218,6 +330,9 @@ function validateAndNormalizeProfile(rawInput, fallbackLabels = ['UV', 'Deep Blu
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
+        isPipeProfileCommand,
+        parsePipeProfileCommand,
+        formatProfileCommand,
         extractJsonFromText,
         decodeProfileParam,
         validateAndNormalizeProfile

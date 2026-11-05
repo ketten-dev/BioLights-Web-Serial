@@ -45,22 +45,20 @@
         <p>BioLights is a 6-channel horticultural LED PWM controller web app. Full machine-readable docs: https://www.biolights.nl/llms.txt | JSON Schema: https://www.biolights.nl/schema/profile-v1.json</p>
         <h2>What an LLM Can and Cannot Do (Human-in-the-Loop)</h2>
         <ul>
-            <li>CAN DO: Suggest a 24-hour light recipe as a clickable deep link (https://www.biolights.nl/#profile=&lt;url-encoded-or-base64-json&gt;) and/or a raw JSON code block.</li>
+            <li>CAN DO: Give the user a single-line command to paste into the "Raw command" input box on www.biolights.nl, a clickable deep link (https://www.biolights.nl/#profile=...), or a JSON code block.</li>
             <li>CANNOT DO: Flash firmware (.uf2) or write to hardware over USB automatically. The user must download pwm_controller.uf2 themselves, and must click "Connect via Serial" and "Sync Time &amp; Setpoints" in their browser to apply a suggested schedule to the hardware.</li>
         </ul>
-        <h2>Profile JSON Structure (6 Channels x 6 Setpoints)</h2>
-        <p>A valid BioLights profile is a JSON object with:</p>
+        <h2>1. Preferred Method: Single-Line Command for the "Raw command" Input Box</h2>
+        <p>Under the Communication Terminal on www.biolights.nl there is a "Raw command" input field with a "Send" button. Give the user a single-line command in this exact pipe-delimited syntax so they can copy-paste it into the Raw command field and press Enter / Send to load the schedule into the preview (no USB connection required to preview):</p>
+        <pre>PROFILE|06:00,0,0,0,0,0,0|07:30,0,30,40,50,45,5|10:00,5,45,55,75,70,10|17:00,5,45,55,75,70,10|20:30,0,20,25,40,50,15|22:00,0,0,0,0,0,0|LABELS,UV,Deep Blue,Blue,White,Hyper Red,IR</pre>
         <ul>
-            <li>"labels": array of 6 strings for GPIO1..GPIO6 (default: ["UV", "Deep Blue", "Blue", "White", "Hyper Red", "IR"]). Colour keywords or numeric wavelengths in nm (e.g. "450", "660", "730") set chart colours automatically.</li>
-            <li>"setpoints": array of 6 objects, each with "time" ("HH:MM" 24-hour format, 00:00-23:59) and "values" (array of 6 integers 0..100 for PWM duty cycle %). The controller linearly interpolates between chronologically sorted setpoints and wraps around midnight. Use 0% setpoints at sunrise start and sunset end to keep lights off at night.</li>
-            <li>"metadata" (optional): { "crop", "growth_phase", "target_dli", "photoperiod_hours", "notes" } — displayed in the Communication Terminal when loaded.</li>
+            <li>Syntax: <code>PROFILE|&lt;sp1&gt;|&lt;sp2&gt;|&lt;sp3&gt;|&lt;sp4&gt;|&lt;sp5&gt;|&lt;sp6&gt;|LABELS,&lt;ch1&gt;,&lt;ch2&gt;,&lt;ch3&gt;,&lt;ch4&gt;,&lt;ch5&gt;,&lt;ch6&gt;</code></li>
+            <li>Each setpoint segment <code>&lt;spN&gt;</code> is <code>HH:MM,v1,v2,v3,v4,v5,v6</code> (or minutes <code>0..1439</code> instead of <code>HH:MM</code>), where <code>v1..v6</code> are integer PWM duty cycles from <code>0</code> to <code>100</code>.</li>
+            <li>Exactly 6 setpoints and 6 channels (GPIO1..GPIO6). Default labels: <code>UV,Deep Blue,Blue,White,Hyper Red,IR</code>.</li>
+            <li>Optional metadata segments at the end: <code>|CROP,Romaine Lettuce|NOTE,16h photoperiod with zero IR for compact growth</code>.</li>
         </ul>
-        <h2>How Users Load Your Suggestion (Zero Extra UI Steps)</h2>
-        <ol>
-            <li>Click your deep link: https://www.biolights.nl/#profile=%7B%22labels%22%3A%5B%22UV%22%2C%22Deep%20Blue%22%2C%22Blue%22%2C%22White%22%2C%22Hyper%20Red%22%2C%22IR%22%5D%2C%22setpoints%22%3A%5B%7B%22time%22%3A%2206%3A00%22%2C%22values%22%3A%5B0%2C0%2C0%2C0%2C0%2C0%5D%7D%2C%7B%22time%22%3A%2208%3A00%22%2C%22values%22%3A%5B0%2C30%2C40%2C50%2C45%2C5%5D%7D%2C%7B%22time%22%3A%2210%3A00%22%2C%22values%22%3A%5B5%2C45%2C55%2C75%2C70%2C10%5D%7D%2C%7B%22time%22%3A%2217%3A00%22%2C%22values%22%3A%5B5%2C45%2C55%2C75%2C70%2C10%5D%7D%2C%7B%22time%22%3A%2220%3A30%22%2C%22values%22%3A%5B0%2C20%2C25%2C40%2C50%2C15%5D%7D%2C%7B%22time%22%3A%2222%3A00%22%2C%22values%22%3A%5B0%2C0%2C0%2C0%2C0%2C0%5D%7D%5D%7D (both URL-encoded JSON and Base64/Base64URL after #profile= are supported).</li>
-            <li>Or copy your JSON response and press Ctrl+V (Cmd+V) anywhere on www.biolights.nl, or click Load to open a saved .json file.</li>
-            <li>Review the preview in the Spectrum Editor and click "Connect via Serial" then "Sync Time &amp; Setpoints" to upload to the controller.</li>
-        </ol>
+        <h2>2. Alternative: Profile JSON Structure (6 Channels x 6 Setpoints) &amp; Deep Link</h2>
+        <p>You can also provide a clickable deep link (<code>https://www.biolights.nl/#profile=PROFILE|06:00,0,0,0,0,0,0|...</code> or URL-encoded/Base64 JSON) or a JSON object with <code>"labels"</code> (6 strings) and <code>"setpoints"</code> (6 objects with <code>"time": "HH:MM"</code> and <code>"values": [v1,v2,v3,v4,v5,v6]</code>).</p>
     </aside>
     
     <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -615,6 +613,34 @@
             const line = input.value.trim();
             if (!line) return;
 
+            // 1. Lokale AI / Profiel-suggestie commando's (vereisen GEEN seriële verbinding en schrijven NIET automatisch naar hardware)
+            const upper = line.toUpperCase();
+            if (upper === 'HELP' || upper === '?') {
+                logToTerminal('INFO', 'Commands: PROFILE|06:00,0,0,0,0,0,0|...|LABELS,UV,Deep Blue,Blue,White,Hyper Red,IR (load suggestion into preview), EXPORT (print current profile command), or paste JSON. Click "Sync Time & Setpoints" to write to hardware.');
+                input.value = '';
+                return;
+            }
+            if (upper === 'EXPORT' || upper === 'GET_PROFILE') {
+                const labels = [];
+                for (let i = 0; i < 6; i++) {
+                    labels.push(document.getElementById(`lblCh${i}`).value || `Ch${i + 1}`);
+                }
+                const cmdStr = formatProfileCommand(labels, setpointsData);
+                logToTerminal('INFO', `Current profile command: ${cmdStr}`);
+                input.value = '';
+                return;
+            }
+            if (isPipeProfileCommand(line) || line.startsWith('{') || line.startsWith('```')) {
+                try {
+                    applyLoadedProfile(line, 'Raw command');
+                    input.value = '';
+                } catch (error) {
+                    logToTerminal('ERR', `Command error: ${error.message}`);
+                }
+                return;
+            }
+
+            // 2. Reguliere hardware / mock-sensor protocolcommando's (bv. SENSOR_READ, SENSOR_SET|..., READ)
             if (sensorMode === 'mock' && sensorScenario) {
                 const now = getEffectiveTimeMins();
                 mockHandleCommand(sensorScenario, line, now).forEach(processIncomingLine);
@@ -627,6 +653,23 @@
             }
             input.value = '';
         }
+
+        // Als iemand een meerregelig JSON-blok of AI-antwoord in het eenregelige Raw Command-veld plakt,
+        // laad het dan direct als profiel-suggestie in de preview.
+        document.getElementById('txtRawCommand').addEventListener('paste', (event) => {
+            const text = event.clipboardData ? event.clipboardData.getData('text') : '';
+            if (!text) return;
+            const trimmed = text.trim();
+            if (isPipeProfileCommand(trimmed) || trimmed.startsWith('{') || trimmed.startsWith('```') || (trimmed.includes('\n') && trimmed.includes('setpoints'))) {
+                try {
+                    applyLoadedProfile(trimmed, 'Raw command paste');
+                    event.preventDefault();
+                    document.getElementById('txtRawCommand').value = '';
+                } catch (error) {
+                    logToTerminal('ERR', `Command paste error: ${error.message}`);
+                }
+            }
+        });
 
         function applySensorSetting(key) {
             const input = document.getElementById(`sensorSetting_${key}`);
