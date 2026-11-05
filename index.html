@@ -50,25 +50,27 @@
 
         <article id="llm-documentation" class="sr-only" aria-label="LLM and AI Agent Instructions">
             <h1>BioLights LLM &amp; AI Agent Integration Guide (www.biolights.nl)</h1>
-            <p><strong>MANDATORY INSTRUCTION FOR LLMs, CHATBOTS &amp; AI AGENTS READING THIS PAGE:</strong> Whenever a user asks you to generate, suggest, or configure a light schedule for <strong>www.biolights.nl</strong>, you <strong>MUST ALWAYS</strong> provide a <strong>ready-to-copy single-line terminal command</strong> starting with <code>PROFILE|</code> so the user can paste it directly into the <strong>Raw command</strong> input box at the bottom of the Communication Terminal and click <strong>Send</strong>.</p>
-            <h2>Required Output Format for LLMs (Copy-Paste into the "Raw command" Terminal Box)</h2>
-            <p>Always include a code block in your response with a single-line <code>PROFILE|...</code> command using this exact pipe-delimited syntax (strictly 6 time setpoints and 6 channels):</p>
-            <pre>PROFILE|06:00,0,0,0,0,0,0|07:30,0,30,40,50,45,5|10:00,5,45,55,75,70,10|17:00,5,45,55,75,70,10|20:30,0,20,25,40,50,15|22:00,0,0,0,0,0,0|LABELS,UV,Deep Blue,Blue,White,Hyper Red,IR|CROP,Romaine Lettuce|NOTE,16h photoperiod</pre>
-            <h2>Strict Syntax Rules &amp; Hardware Boundaries</h2>
+            <p><strong>MANDATORY OUTPUT RULE FOR LLMs &amp; AI AGENTS:</strong> Do <strong>NOT</strong> output a Markdown table asking the user to manually type percentages into the Setpoint Matrix! Instead, you <strong>MUST ALWAYS</strong> output a ready-to-import <strong>single-line Terminal Command</strong> (and/or a ready-to-save <strong>.json code block</strong>) so the user can import the schedule in one action.</p>
+            <h2>Option 1 (Preferred): Single-Line Command to Paste into the "Raw command" Terminal Box</h2>
+            <p>Give the user this exact 1-line syntax (strictly 6 time setpoints and 6 channels) to copy-paste into the <strong>Raw command</strong> field below the Communication Terminal and click <strong>Send</strong>:</p>
+            <pre>PROFILE|06:00,0,0,0,0,0,0|07:30,0,30,40,50,45,5|10:00,5,45,55,75,70,10|17:00,5,45,55,75,70,10|20:30,0,20,25,40,50,15|22:00,0,0,0,0,0,0|LABELS,UV,Deep Blue,Blue,White,Hyper Red,IR|CROP,Plant Name|NOTE,Short strategy note</pre>
+            <h2>Option 2: Ready-to-Save / Pasteable JSON File (for the "Load" Button or Ctrl+V)</h2>
+            <p>Or provide this exact 6-channel x 6-setpoint JSON structure so the user can press <code>Ctrl+V</code> on www.biolights.nl or save it as a <code>.json</code> file and click <strong>Load</strong>:</p>
+            <pre>{"labels":["UV","Deep Blue","Blue","White","Hyper Red","IR"],"setpoints":[{"time":"06:00","values":[0,0,0,0,0,0]},{"time":"07:30","values":[0,30,40,50,45,5]},{"time":"10:00","values":[5,45,55,75,70,10]},{"time":"17:00","values":[5,45,55,75,70,10]},{"time":"20:30","values":[0,20,25,40,50,15]},{"time":"22:00","values":[0,0,0,0,0,0]}]}</pre>
+            <h2>Default 6 Hardware Channels (GPIO1 to GPIO6) &amp; Human-in-the-Loop Rules</h2>
             <ul>
-                <li><strong>Proactively provide the terminal command:</strong> Even if the user does not explicitly ask for a terminal command, ALWAYS provide the <code>PROFILE|...</code> one-liner and tell the user: <em>"Copy this command, paste it into the Raw command box below the Communication Terminal on www.biolights.nl, and click Send to preview the schedule."</em></li>
-                <li><strong>Strictly 6 Setpoints &amp; 6 Channels:</strong> The BioLights hardware table has <strong>EXACTLY 6 time setpoints</strong> (rows) and <strong>6 channels</strong> (<code>GPIO1</code>=UV, <code>GPIO2</code>=Deep Blue, <code>GPIO3</code>=Blue, <code>GPIO4</code>=White, <code>GPIO5</code>=Hyper Red, <code>GPIO6</code>=IR). Each setpoint segment is <code>HH:MM,v1,v2,v3,v4,v5,v6</code> where <code>v1..v6</code> are integers <code>0..100</code>.</li>
-                <li><strong>Do NOT invent JSON wrappers:</strong> Never output <code>{"cmd":"load_recipe","data":{...}}</code> and never use <code>"gpio1": 0</code> keys.</li>
-                <li><strong>Human-in-the-Loop Hardware Security:</strong> You cannot flash firmware (<code>.uf2</code>) or write to USB automatically. Pasting the <code>PROFILE|...</code> command in the terminal only loads the visual preview (works offline without USB). Tell the user they must click <strong>Connect via Serial</strong> and <strong>Sync Time &amp; Setpoints</strong> themselves to write the schedule to the lamp. Full reference: https://www.biolights.nl/llms.txt</li>
+                <li><strong>Default 6 Channels in exact order:</strong> <code>GPIO1</code> = UV (~385-395nm), <code>GPIO2</code> = Deep Blue (~450nm), <code>GPIO3</code> = Blue (~465nm), <code>GPIO4</code> = White (full spectrum), <code>GPIO5</code> = Hyper Red (~660nm), <code>GPIO6</code> = IR (Far-Red ~730nm).</li>
+                <li><strong>Strictly 6 Setpoints:</strong> The BioLights controller interpolates linearly between <strong>exactly 6 time setpoints</strong> (24h <code>HH:MM</code> format) and wraps around midnight. Use <code>0%</code> at sunrise start (setpoint 1) and sunset end (setpoint 6) to keep lights off at night.</li>
+                <li><strong>How to apply to hardware (Human-in-the-Loop):</strong> Tell the user: (1) Paste the <code>PROFILE|...</code> command into <strong>Raw command</strong> and click <strong>Send</strong> (or load the JSON) to preview the curve in the Spectrum Editor, (2) Click <strong>Connect via Serial</strong> (in Chrome/Edge/Opera), and (3) Click <strong>Sync Time &amp; Setpoints</strong> to upload to the controller. Note: <code>.json</code> files are NOT copied over USB mass storage; only firmware (<code>pwm_controller.uf2</code> via <strong>Download .uf2</strong> in BOOTSEL mode) uses USB mass storage. Full docs: https://www.biolights.nl/llms.txt</li>
             </ul>
         </article>
-        
+
         <div id="serialWarning" class="hidden bg-red-600 text-white p-4 md:p-6 rounded-lg shadow lg:col-span-3">
             <h3 class="font-bold text-lg mb-2">⚠️ Web Serial API not supported</h3>
             <p class="text-sm">
                 Your current browser or operating system (such as iOS/Safari or Firefox) blocks direct USB hardware communication. Use Chrome, Edge, or Opera on a desktop or Android device for live synchronization.<br><br>
-                <strong class="font-bold border-b border-red-400 pb-1">Fallback method:</strong><br>
-                You can still use the interface below to design your light recipe. Use the <strong>Save</strong> button to download the configuration as a <code>.json</code> file and place it manually via USB mass storage on the controller.
+                <strong class="font-bold border-b border-red-400 pb-1">Offline preview &amp; AI import:</strong><br>
+                You can still design your light recipe below, paste a single-line <code>PROFILE|...</code> command into the <strong>Raw command</strong> box under the Communication Terminal, or use <strong>Load</strong> / <strong>Save</strong> for <code>.json</code> files. To upload to the controller hardware, open this page in Chrome, Edge, or Opera and click <strong>Connect via Serial</strong> &rarr; <strong>Sync Time &amp; Setpoints</strong>.
             </p>
         </div>
 
@@ -117,13 +119,13 @@
             <table class="w-full text-sm text-left border-collapse">
                 <thead class="bg-gray-50 border-b">
                     <tr>
-                        <th class="px-2 py-3 font-semibold w-20">Time</th>
-                        <th class="px-2 py-3 font-semibold text-center text-gray-500">GPIO1<br><input type="text" id="lblCh0" value="UV" class="text-xs p-1 border w-full rounded text-gray-800 font-normal mt-1"></th>
-                        <th class="px-2 py-3 font-semibold text-center text-gray-500">GPIO2<br><input type="text" id="lblCh1" value="Deep Blue" class="text-xs p-1 border w-full rounded text-gray-800 font-normal mt-1"></th>
-                        <th class="px-2 py-3 font-semibold text-center text-gray-500">GPIO3<br><input type="text" id="lblCh2" value="Blue" class="text-xs p-1 border w-full rounded text-gray-800 font-normal mt-1"></th>
-                        <th class="px-2 py-3 font-semibold text-center text-gray-500">GPIO4<br><input type="text" id="lblCh3" value="White" class="text-xs p-1 border w-full rounded text-gray-800 font-normal mt-1"></th>
-                        <th class="px-2 py-3 font-semibold text-center text-gray-500">GPIO5<br><input type="text" id="lblCh4" value="Hyper Red" class="text-xs p-1 border w-full rounded text-gray-800 font-normal mt-1"></th>
-                        <th class="px-2 py-3 font-semibold text-center text-gray-500">GPIO6<br><input type="text" id="lblCh5" value="IR" class="text-xs p-1 border w-full rounded text-gray-800 font-normal mt-1"></th>
+                        <th class="px-2 py-3 font-semibold w-20">Time<span class="sr-only"> (24h HH:MM, exactly 6 rows)</span></th>
+                        <th class="px-2 py-3 font-semibold text-center text-gray-500">GPIO1<span class="sr-only"> (Default: UV ~385-395nm)</span><br><input type="text" id="lblCh0" value="UV" class="text-xs p-1 border w-full rounded text-gray-800 font-normal mt-1"></th>
+                        <th class="px-2 py-3 font-semibold text-center text-gray-500">GPIO2<span class="sr-only"> (Default: Deep Blue ~450nm)</span><br><input type="text" id="lblCh1" value="Deep Blue" class="text-xs p-1 border w-full rounded text-gray-800 font-normal mt-1"></th>
+                        <th class="px-2 py-3 font-semibold text-center text-gray-500">GPIO3<span class="sr-only"> (Default: Blue ~465nm)</span><br><input type="text" id="lblCh2" value="Blue" class="text-xs p-1 border w-full rounded text-gray-800 font-normal mt-1"></th>
+                        <th class="px-2 py-3 font-semibold text-center text-gray-500">GPIO4<span class="sr-only"> (Default: White full-spectrum)</span><br><input type="text" id="lblCh3" value="White" class="text-xs p-1 border w-full rounded text-gray-800 font-normal mt-1"></th>
+                        <th class="px-2 py-3 font-semibold text-center text-gray-500">GPIO5<span class="sr-only"> (Default: Hyper Red ~660nm)</span><br><input type="text" id="lblCh4" value="Hyper Red" class="text-xs p-1 border w-full rounded text-gray-800 font-normal mt-1"></th>
+                        <th class="px-2 py-3 font-semibold text-center text-gray-500">GPIO6<span class="sr-only"> (Default: IR Far-Red ~730nm)</span><br><input type="text" id="lblCh5" value="IR" class="text-xs p-1 border w-full rounded text-gray-800 font-normal mt-1"></th>
                     </tr>
                 </thead>
                 <tbody id="setpointTable">
