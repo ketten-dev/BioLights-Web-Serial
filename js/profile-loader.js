@@ -4,9 +4,10 @@
 //    - PROFILE|06:00,0,0,0,0,0,0|08:00,0,30,40,50,45,5|...|LABELS,UV,Deep Blue,Blue,White,Hyper Red,IR
 //    - of het native protocolformaat: SYNC|<mins>|360,0,0,0,0,0,0|...|LABELS,...
 //    - of met tijd in HH:MM én minuten door elkaar.
-// 2. Directe JSON, Markdown codeblocks (```json ... ```) en vrije AI-chattekst met JSON erin.
-// 3. URL Deep Links (#profile=... of ?profile=...) in zowel pipe-command syntax, URL-encoded JSON als Base64 / Base64URL.
-// 4. Normalisatie naar de vaste 6x6 BioLights hardware-matrix (6 kanalen x 6 setpoints) + veiligheidswaarschuwingen.
+// 2. Directe JSON, Markdown codeblocks (```json ... ```), vrije AI-chattekst met JSON erin,
+//    én veelvoorkomende door LLM's verzonnen JSON-wrappers (zoals {"cmd":"load_recipe","data":{"setpoints":[{"time":"07:00","gpio1":0,...}]}}).
+// 3. Intelligente reductie van >6 setpoints naar exact 6 representatieve setpoints (verwijdert redundante 0%-punten en vlakke tussenpunten).
+// 4. URL Deep Links (#profile=... of ?profile=...) in zowel pipe-command syntax, URL-encoded JSON als Base64 / Base64URL.
 
 function isPipeProfileCommand(input) {
     if (typeof input !== 'string') return false;
@@ -187,13 +188,178 @@ function decodeProfileParam(rawParam, fallbackLabels) {
     return extractJsonFromText(utf8Text, fallbackLabels);
 }
 
+// Haalt 6 kanaalwaarden uit een setpoint-object, ongeacht of de LLM:
+// - een "values": [v1..v6] array geeft, of
+// - losse sleutels {"gpio1": 20, "gpio2": 5, ...} of {"ch1": ..., "ch2": ...} of {"UV": ..., "Deep Blue": ...} gebruikt.
+function extractSetpointValues(sp, labels) {
+    if (Array.isArray(sp.values) && sp.values.length > 0) {
+        return sp.values;
+    }
+    if (Array.isArray(sp.channels) && sp.channels.length > 0) {
+        return sp.channels;
+    }
+    if (Array.isArray(sp.duty) && sp.duty.length > 0) {
+        return sp.duty;
+    }
+
+    const keys = Object.keys(sp);
+    // Check op gpio1..gpio6 of ch1..ch6 of channel1..channel6 (1-indexed) of ch0..ch5 (0-indexed)
+    const hasGpio1 = keys.some(k => /^(gpio|ch|channel|pwm)_?[1-6]$/i.test(k));
+    if (hasGpio1) {
+        const vals = [];
+        for (let c = 1; c <= 6; c++) {
+            const matchKey = keys.find(k => new RegExp(`^(gpio|ch|channel|pwm)_?${c}$`, 'i').test(k));
+            vals.push(matchKey !== undefined ? sp[matchKey] : 0);
+        }
+        return vals;
+    }
+
+    const hasGpio0 = keys.some(k => /^(gpio|ch|channel|pwm)_?0$/i.test(k));
+    if (hasGpio0) {
+        const vals = [];
+        for (let c = 0; c < 6; c++) {
+            const matchKey = keys.find(k => new RegExp(`^(gpio|ch|channel|pwm)_?${c}$`, 'i').test(k));
+            vals.push(matchKey !== undefined ? sp[matchKey] : 0);
+        }
+        return vals;
+    }
+
+    // Check op kanaalnamen als sleutels (bv. {"uv": 0, "deep_blue": 30, ...})
+    const labelAliases = [
+        ['uv', 'ultraviolet'],
+        ['deep_blue', 'deepblue', 'deep blue'],
+        ['blue'],
+        ['white', 'full_spectrum'],
+        ['hyper_red', 'hyperred', 'hyper red', 'red', 'deep_red'],
+        ['ir', 'far_red', 'farred', 'far red', 'infrared']
+    ];
+    const hasNamedChannel = keys.some(k => {
+        const lk = k.toLowerCase();
+        return labels.some(l => l.toLowerCase() === lk) || labelAliases.some(group => group.includes(lk));
+    });
+    if (hasNamedChannel) {
+        return labels.map((lbl, c) => {
+            const target = lbl.toLowerCase();
+            let foundKey = keys.find(k => k.toLowerCase() === target);
+            if (!foundKey && labelAliases[c]) {
+                foundKey = keys.find(k => labelAliases[c].includes(k.toLowerCase()));
+            }
+            return foundKey !== undefined ? sp[foundKey] : 0;
+        });
+    }
+
+    return null;
+}
+
+// Als een LLM meer dan 6 setpoints genereert (bijv. 10 setpoints met 00:00 én 07:00 én 20:15 op 0%),
+// comprimeer deze dan slim naar de 6 belangrijkste knikpunten van de 24-uurs curve i.p.v. blind afkappen.
+function reduceToSixSetpoints(setpoints) {
+    if (setpoints.length <= 6) return setpoints;
+
+    const toMins = (t) => {
+        const [h, m] = t.split(':').map(Number);
+        return h * 60 + m;
+    };
+    const isAllZero = (v) => v.every(x => x === 0);
+    const sameValues = (a, b) => a.every((x, i) => x === b[i]);
+
+    // 1. Sorteer chronologisch op tijd
+    let list = setpoints
+        .map(sp => ({ time: sp.time, mins: toMins(sp.time), values: [...sp.values] }))
+        .sort((a, b) => a.mins - b.mins);
+
+    // 2. Als er meerdere opeenvolgende 0%-setpoints zijn (inclusief wrap-around over middernacht,
+    // zoals 00:00=0%, 07:00=0% en 20:15=0%), behoud dan alleen het LAATSTE 0%-punt vóór zonsopkomst (bijv. 07:00)
+    // en het EERSTE 0%-punt bij zonsondergang (bijv. 20:15).
+    const nonZeroIndices = list.map((sp, i) => (!isAllZero(sp.values) ? i : -1)).filter(i => i !== -1);
+    if (nonZeroIndices.length > 0 && list.length > 6) {
+        const firstActive = nonZeroIndices[0];
+        const lastActive = nonZeroIndices[nonZeroIndices.length - 1];
+        const sunriseZeroIdx = firstActive > 0 ? firstActive - 1 : -1;
+        const sunsetZeroIdx = lastActive < list.length - 1 ? lastActive + 1 : -1;
+
+        list = list.filter((sp, idx) => {
+            if (!isAllZero(sp.values)) return true;
+            if (idx === sunriseZeroIdx || idx === sunsetZeroIdx) return true;
+            // Ook een middernacht-0% tussen twee actieve punten binnen de dag behouden als die bestaat
+            if (idx > firstActive && idx < lastActive) return true;
+            return false;
+        });
+    }
+
+    // 3. Als we nog steeds > 6 punten hebben: verwijder herhaalde identieke waarden of het punt
+    // dat het minst afwijkt van lineaire interpolatie tussen zijn directe buren (Ramer-Douglas-Peucker op 24u).
+    while (list.length > 6) {
+        let minScore = Infinity;
+        let removeIdx = 1;
+
+        // Bescherm het eerste en laatste punt van de fotoperiode zoveel mogelijk
+        for (let i = 1; i < list.length - 1; i++) {
+            const prev = list[i - 1];
+            const curr = list[i];
+            const next = list[i + 1];
+            const dtTotal = next.mins - prev.mins;
+            const frac = dtTotal > 0 ? (curr.mins - prev.mins) / dtTotal : 0.5;
+
+            // Bereken de maximale afwijking t.o.v. een rechte lijn tussen prev en next
+            let dev = 0;
+            for (let c = 0; c < 6; c++) {
+                const expected = prev.values[c] + (next.values[c] - prev.values[c]) * frac;
+                dev += Math.abs(curr.values[c] - expected);
+            }
+            // Geef lichte voorkeur aan het verwijderen van punten die heel dicht op elkaar zitten in tijd
+            const timeWeight = Math.min(curr.mins - prev.mins, next.mins - curr.mins) / 60;
+            const score = dev * (0.5 + timeWeight);
+
+            if ( sameValues(prev.values, curr.values) && sameValues(curr.values, next.values) ) {
+                removeIdx = i;
+                break;
+            }
+            if (score < minScore) {
+                minScore = score;
+                removeIdx = i;
+            }
+        }
+        list.splice(removeIdx, 1);
+    }
+
+    return list.map(({ time, values }) => ({ time, values }));
+}
+
 function validateAndNormalizeProfile(rawInput, fallbackLabels = ['UV', 'Deep Blue', 'Blue', 'White', 'Hyper Red', 'IR']) {
-    const obj = extractJsonFromText(rawInput, fallbackLabels);
+    let obj = extractJsonFromText(rawInput, fallbackLabels);
     if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
         throw new Error('Profile root must be an object or PROFILE| command.');
     }
 
-    if (!Array.isArray(obj.setpoints) || obj.setpoints.length === 0) {
+    // Pak geneste AI-wrappers automatisch uit, zoals:
+    // {"cmd": "load_recipe", "data": {"name": "Nicotiana_13_11", "setpoints": [...]}}
+    // of {"profile": {"setpoints": [...]}} of {"recipe": {"schedule": [...]}}
+    const wrapperMetadata = {};
+    if (typeof obj.name === 'string') wrapperMetadata.crop = obj.name;
+    if (typeof obj.crop === 'string') wrapperMetadata.crop = obj.crop;
+    if (typeof obj.notes === 'string') wrapperMetadata.notes = obj.notes;
+
+    const nestedCandidates = [obj.data, obj.profile, obj.recipe, obj.payload, obj.config, obj.parameters];
+    for (const candidate of nestedCandidates) {
+        if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)) {
+            if (Array.isArray(candidate.setpoints) || Array.isArray(candidate.schedule) || Array.isArray(candidate.points)) {
+                if (typeof candidate.name === 'string' && !wrapperMetadata.crop) wrapperMetadata.crop = candidate.name;
+                if (typeof candidate.crop === 'string') wrapperMetadata.crop = candidate.crop;
+                if (typeof candidate.notes === 'string') wrapperMetadata.notes = candidate.notes;
+                if (typeof candidate.description === 'string' && !wrapperMetadata.notes) wrapperMetadata.notes = candidate.description;
+                obj = {
+                    ...candidate,
+                    labels: candidate.labels || obj.labels,
+                    metadata: { ...wrapperMetadata, ...(obj.metadata || {}), ...(candidate.metadata || {}) }
+                };
+                break;
+            }
+        }
+    }
+
+    const rawSetpointsArray = obj.setpoints || obj.schedule || obj.points || obj.steps;
+    if (!Array.isArray(rawSetpointsArray) || rawSetpointsArray.length === 0) {
         throw new Error('Profile is missing a valid "setpoints" array.');
     }
 
@@ -202,12 +368,13 @@ function validateAndNormalizeProfile(rawInput, fallbackLabels = ['UV', 'Deep Blu
 
     // Labels valideren en aanvullen tot 6 kanalen
     const labels = [];
-    if (Array.isArray(obj.labels)) {
-        if (obj.labels.length !== 6) {
-            warnings.push(`Profile specifies ${obj.labels.length} channel labels; BioLights hardware uses 6 channels (GPIO1-GPIO6). Adjusted to 6 channels.`);
+    const rawLabelsArray = obj.labels || obj.channels || obj.channel_names;
+    if (Array.isArray(rawLabelsArray)) {
+        if (rawLabelsArray.length !== 6) {
+            warnings.push(`Profile specifies ${rawLabelsArray.length} channel labels; BioLights hardware uses 6 channels (GPIO1-GPIO6). Adjusted to 6 channels.`);
         }
         for (let c = 0; c < 6; c++) {
-            const rawLbl = obj.labels[c];
+            const rawLbl = rawLabelsArray[c];
             labels.push((typeof rawLbl === 'string' && rawLbl.trim() !== '') ? rawLbl.trim() : (fallbackLabels[c] || `Ch${c + 1}`));
         }
     } else {
@@ -218,23 +385,25 @@ function validateAndNormalizeProfile(rawInput, fallbackLabels = ['UV', 'Deep Blu
 
     // Setpoints valideren
     const timeRegex = /^([0-1]?[0-9]|2[0-3]):([0-5][0-9])$/;
-    const parsedSetpoints = obj.setpoints.map((sp, idx) => {
+    const parsedSetpoints = rawSetpointsArray.map((sp, idx) => {
         if (!sp || typeof sp !== 'object') {
             throw new Error(`Setpoint #${idx + 1} is not an object.`);
         }
-        if (typeof sp.time !== 'string' || !timeRegex.test(sp.time.trim())) {
+        const timeStr = typeof sp.time === 'string' ? sp.time.trim() : (typeof sp.t === 'string' ? sp.t.trim() : '');
+        if (!timeRegex.test(timeStr)) {
             throw new Error(`Setpoint #${idx + 1} has invalid time "${sp.time}" (expected 24h HH:MM format, e.g. "06:00").`);
         }
-        const m = sp.time.trim().match(timeRegex);
+        const m = timeStr.match(timeRegex);
         const formattedTime = `${m[1].padStart(2, '0')}:${m[2]}`;
 
-        if (!Array.isArray(sp.values) || sp.values.length === 0) {
-            throw new Error(`Setpoint #${idx + 1} (${formattedTime}) is missing a "values" array.`);
+        const extractedValues = extractSetpointValues(sp, labels);
+        if (!Array.isArray(extractedValues) || extractedValues.length === 0) {
+            throw new Error(`Setpoint #${idx + 1} (${formattedTime}) is missing channel values (expected "values": [v1..v6] or "gpio1".."gpio6").`);
         }
 
         const values = [];
         for (let c = 0; c < 6; c++) {
-            const rawVal = sp.values[c];
+            const rawVal = extractedValues[c];
             let num = (rawVal === undefined || rawVal === null || rawVal === '') ? 0 : Number(rawVal);
             if (!Number.isFinite(num)) {
                 throw new Error(`Setpoint #${idx + 1} (${formattedTime}), channel ${c + 1} has a non-numeric value.`);
@@ -251,28 +420,33 @@ function validateAndNormalizeProfile(rawInput, fallbackLabels = ['UV', 'Deep Blu
     });
 
     // Normaliseer naar exact 6 setpoints voor de hardware-matrix
-    let setpoints = parsedSetpoints.slice(0, 6);
+    let setpoints;
     if (parsedSetpoints.length < 6) {
         warnings.push(`Profile contains ${parsedSetpoints.length} setpoints; padded to 6 rows for the BioLights matrix.`);
+        setpoints = [...parsedSetpoints];
         while (setpoints.length < 6) {
             setpoints.push({ time: '00:00', values: [0, 0, 0, 0, 0, 0] });
         }
     } else if (parsedSetpoints.length > 6) {
-        warnings.push(`Profile contains ${parsedSetpoints.length} setpoints; truncated to the first 6 setpoints supported by BioLights hardware.`);
+        setpoints = reduceToSixSetpoints(parsedSetpoints);
+        warnings.push(`Profile had ${parsedSetpoints.length} setpoints; intelligently simplified to the 6 key inflection points (${setpoints.map(s => s.time).join(', ')}) for the 6-row BioLights controller.`);
+    } else {
+        setpoints = parsedSetpoints;
     }
 
-    // Metadata uitlezen (indien meegegeven door een LLM)
-    if (obj.metadata && typeof obj.metadata === 'object') {
+    // Metadata uitlezen (indien meegegeven door een LLM of uit wrapper)
+    const combinedMeta = { ...wrapperMetadata, ...(obj.metadata && typeof obj.metadata === 'object' ? obj.metadata : {}) };
+    if (Object.keys(combinedMeta).length > 0) {
         const metaParts = [];
-        if (obj.metadata.crop) metaParts.push(`Crop: ${obj.metadata.crop}`);
-        if (obj.metadata.growth_phase) metaParts.push(`Stage: ${obj.metadata.growth_phase}`);
-        if (obj.metadata.target_dli !== undefined) metaParts.push(`Target DLI: ${obj.metadata.target_dli} mol/m²/d`);
-        if (obj.metadata.photoperiod_hours !== undefined) metaParts.push(`Photoperiod: ${obj.metadata.photoperiod_hours}h`);
+        if (combinedMeta.crop) metaParts.push(`Crop/Name: ${combinedMeta.crop}`);
+        if (combinedMeta.growth_phase) metaParts.push(`Stage: ${combinedMeta.growth_phase}`);
+        if (combinedMeta.target_dli !== undefined) metaParts.push(`Target DLI: ${combinedMeta.target_dli} mol/m²/d`);
+        if (combinedMeta.photoperiod_hours !== undefined) metaParts.push(`Photoperiod: ${combinedMeta.photoperiod_hours}h`);
         if (metaParts.length > 0) {
             infoMessages.push(`Profile metadata — ${metaParts.join(' | ')}`);
         }
-        if (obj.metadata.notes) {
-            infoMessages.push(`Profile notes: ${obj.metadata.notes}`);
+        if (combinedMeta.notes) {
+            infoMessages.push(`Profile notes: ${combinedMeta.notes}`);
         }
     }
 
@@ -322,7 +496,7 @@ function validateAndNormalizeProfile(rawInput, fallbackLabels = ['UV', 'Deep Blu
     return {
         labels,
         setpoints,
-        metadata: obj.metadata || null,
+        metadata: Object.keys(combinedMeta).length > 0 ? combinedMeta : null,
         infoMessages,
         warnings
     };
@@ -376,6 +550,8 @@ if (typeof module !== 'undefined' && module.exports) {
         formatProfileCommand,
         extractJsonFromText,
         decodeProfileParam,
+        extractSetpointValues,
+        reduceToSixSetpoints,
         validateAndNormalizeProfile,
         formatHelpFromDocs
     };

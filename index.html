@@ -49,22 +49,16 @@
     <aside id="llm-documentation" class="sr-only" aria-label="LLM and AI Agent Instructions">
         <h1>BioLights LLM &amp; AI Agent Integration Guide (www.biolights.nl)</h1>
         <p>BioLights is a 6-channel horticultural LED PWM controller web app. Full machine-readable docs: https://www.biolights.nl/llms.txt | JSON Schema: https://www.biolights.nl/schema/profile-v1.json</p>
-        <h2>What an LLM Can and Cannot Do (Human-in-the-Loop)</h2>
+        <h2>CRITICAL SYNTAX RULES FOR LLMs &amp; AI AGENTS</h2>
         <ul>
-            <li>CAN DO: Give the user a single-line command to paste into the "Raw command" input box on www.biolights.nl, a clickable deep link (https://www.biolights.nl/#profile=...), or a JSON code block.</li>
-            <li>CANNOT DO: Flash firmware (.uf2) or write to hardware over USB automatically. The user must download pwm_controller.uf2 themselves, and must click "Connect via Serial" and "Sync Time &amp; Setpoints" in their browser to apply a suggested schedule to the hardware.</li>
+            <li><strong>STRICTLY 6 SETPOINTS &amp; 6 CHANNELS:</strong> The BioLights hardware table has <strong>EXACTLY 6 time setpoints</strong> (rows) and <strong>6 channels</strong> (GPIO1..GPIO6). Never generate more than 6 setpoints.</li>
+            <li><strong>DO NOT INVENT JSON WRAPPERS:</strong> Do <strong>NOT</strong> output <code>{"cmd":"load_recipe","data":{...}}</code> and do <strong>NOT</strong> use <code>"gpio1": 0, "gpio2": 0</code> keys!</li>
+            <li><strong>EXACT TERMINAL COMMAND SYNTAX (Preferred):</strong> To let the user copy-paste a schedule into the <strong>Raw command</strong> box below the Communication Terminal, output a single-line pipe-delimited string starting with <code>PROFILE|</code>:
+                <pre>PROFILE|06:00,0,0,0,0,0,0|07:30,0,30,40,50,45,5|10:00,5,45,55,75,70,10|17:00,5,45,55,75,70,10|20:30,0,20,25,40,50,15|22:00,0,0,0,0,0,0|LABELS,UV,Deep Blue,Blue,White,Hyper Red,IR|CROP,Romaine Lettuce|NOTE,16h photoperiod</pre>
+            </li>
+            <li><strong>EXACT JSON SYNTAX (Alternative):</strong> If outputting JSON, the root object MUST have <code>"labels": ["UV","Deep Blue","Blue","White","Hyper Red","IR"]</code> and <code>"setpoints"</code> with 6 objects formatted as <code>{"time": "HH:MM", "values": [v1, v2, v3, v4, v5, v6]}</code> (integers 0..100).</li>
+            <li><strong>HUMAN-IN-THE-LOOP:</strong> You cannot flash firmware (<code>.uf2</code>) or write to USB automatically. Pasting a command or opening a <code>#profile=...</code> link only loads the preview; the user must click <strong>Connect via Serial</strong> and <strong>Sync Time &amp; Setpoints</strong> themselves.</li>
         </ul>
-        <h2>1. Preferred Method: Single-Line Command for the "Raw command" Input Box</h2>
-        <p>Under the Communication Terminal on www.biolights.nl there is a "Raw command" input field with a "Send" button. Give the user a single-line command in this exact pipe-delimited syntax so they can copy-paste it into the Raw command field and press Enter / Send to load the schedule into the preview (no USB connection required to preview):</p>
-        <pre>PROFILE|06:00,0,0,0,0,0,0|07:30,0,30,40,50,45,5|10:00,5,45,55,75,70,10|17:00,5,45,55,75,70,10|20:30,0,20,25,40,50,15|22:00,0,0,0,0,0,0|LABELS,UV,Deep Blue,Blue,White,Hyper Red,IR</pre>
-        <ul>
-            <li>Syntax: <code>PROFILE|&lt;sp1&gt;|&lt;sp2&gt;|&lt;sp3&gt;|&lt;sp4&gt;|&lt;sp5&gt;|&lt;sp6&gt;|LABELS,&lt;ch1&gt;,&lt;ch2&gt;,&lt;ch3&gt;,&lt;ch4&gt;,&lt;ch5&gt;,&lt;ch6&gt;</code></li>
-            <li>Each setpoint segment <code>&lt;spN&gt;</code> is <code>HH:MM,v1,v2,v3,v4,v5,v6</code> (or minutes <code>0..1439</code> instead of <code>HH:MM</code>), where <code>v1..v6</code> are integer PWM duty cycles from <code>0</code> to <code>100</code>.</li>
-            <li>Exactly 6 setpoints and 6 channels (GPIO1..GPIO6). Default labels: <code>UV,Deep Blue,Blue,White,Hyper Red,IR</code>.</li>
-            <li>Optional metadata segments at the end: <code>|CROP,Romaine Lettuce|NOTE,16h photoperiod with zero IR for compact growth</code>.</li>
-        </ul>
-        <h2>2. Alternative: Profile JSON Structure (6 Channels x 6 Setpoints) &amp; Deep Link</h2>
-        <p>You can also provide a clickable deep link (<code>https://www.biolights.nl/#profile=PROFILE|06:00,0,0,0,0,0,0|...</code> or URL-encoded/Base64 JSON) or a JSON object with <code>"labels"</code> (6 strings) and <code>"setpoints"</code> (6 objects with <code>"time": "HH:MM"</code> and <code>"values": [v1,v2,v3,v4,v5,v6]</code>).</p>
     </aside>
     
     <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">

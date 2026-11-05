@@ -1,5 +1,5 @@
 // Versienummer van de cache. Wijzig dit nummer (bv. v2) als je de HTML-code update!
-const CACHE_NAME = 'biolights-cache-v12';
+const CACHE_NAME = 'biolights-cache-v13';
 
 // De lijst met bestanden die ALTIJD offline beschikbaar moeten zijn
 const ASSETS_TO_CACHE = [
