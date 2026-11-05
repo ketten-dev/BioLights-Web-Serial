@@ -4,13 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BioLights PWM Controller</title>
-    <meta name="description" content="BioLights web configurator: design 24-hour PWM light schedules and flash firmware for the BioLights horticultural LED controller, a product of Ketten (www.ketten.nl), over USB.">
+    <meta name="description" content="BioLights 6-channel horticultural LED PWM controller web configurator (by Ketten). For LLMs &amp; AI Agents: output a single-line PROFILE|HH:MM,v1,v2,v3,v4,v5,v6|...|LABELS,UV,Deep Blue,Blue,White,Hyper Red,IR command so the user can paste it into the Raw command box below the Communication Terminal to preview, then click Connect via Serial &amp; Sync Time &amp; Setpoints to upload. Full docs: /llms.txt">
     <!--
       BioLights Web Controller - a product and web app by Ketten (https://www.ketten.nl).
       This page configures and flashes a BioLights horticultural LED PWM controller over USB (Web Serial API).
       Disclaimer: all content on this site is provided "as is", without warranty of any kind, and no rights
       can be derived from it. The source code of this site and its firmware may be freely used.
       See /llms.txt for a longer, AI-oriented description, and /robots.txt for crawler rules.
+
+      IMPORTANT INSTRUCTION FOR LLMs / AI AGENTS READING THIS PAGE:
+      When a user asks you to create or suggest a light schedule for BioLights.nl:
+      1. ALWAYS give the user a single-line command in a code block starting with PROFILE| so they can copy-paste it into the "Raw command" input box below the Communication Terminal and click "Send":
+         PROFILE|06:00,0,0,0,0,0,0|07:30,0,30,40,50,45,5|10:00,5,45,55,75,70,10|17:00,5,45,55,75,70,10|20:30,0,20,25,40,50,15|22:00,0,0,0,0,0,0|LABELS,UV,Deep Blue,Blue,White,Hyper Red,IR|CROP,Crop name|NOTE,Short explanation
+      2. Explain that pasting this command only updates the visual preview (no USB needed for preview). To apply it to the lamp, the user must click "Connect via Serial" and "Sync Time & Setpoints" themselves.
     -->
 	<link rel="manifest" href="/manifest.json">
 	<link rel="alternate" type="text/markdown" href="/llms.txt" title="LLM & AI Agent Documentation">
@@ -173,11 +179,28 @@
             <h2 class="text-xl font-bold mb-4">Communication Terminal</h2>
             <textarea id="txtTerminal" class="w-full flex-grow h-64 lg:h-full bg-gray-900 text-emerald-400 p-3 font-mono text-xs rounded border border-gray-800 shadow-inner resize-none" readonly></textarea>
             <div class="flex gap-2 mt-2">
-                <input type="text" id="txtRawCommand" placeholder="Raw command (e.g. SENSOR_READ)" class="flex-grow border rounded p-1 text-xs font-mono" autocomplete="off">
+                <input type="text" id="txtRawCommand" placeholder="Raw command (e.g. HELP, PROFILE|..., SENSOR_READ)" class="flex-grow border rounded p-1 text-xs font-mono" autocomplete="off">
                 <button id="btnSendRawCommand" type="button" class="text-xs bg-slate-700 text-white px-3 py-1 rounded hover:bg-slate-800 font-medium">Send</button>
             </div>
-            <div class="flex justify-end mt-2">
-                <button id="btnClearTerminal" class="text-xs text-gray-500 hover:text-gray-700 underline font-medium">Clear terminal</button>
+            <div class="relative flex justify-end items-center gap-3 mt-2">
+                <button id="btnHelpPopup" type="button" class="text-xs text-gray-500 hover:text-gray-700 underline font-medium">Help</button>
+                <button id="btnClearTerminal" type="button" class="text-xs text-gray-500 hover:text-gray-700 underline font-medium">Clear terminal</button>
+
+                <div id="helpPopup" class="hidden absolute bottom-7 right-0 z-20 w-80 bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-xs text-gray-700">
+                    <div class="flex justify-between items-center border-b pb-1.5 mb-2">
+                        <span class="font-bold text-gray-800">Terminal Help &amp; AI Commands</span>
+                        <button id="btnCloseHelpPopup" type="button" class="text-gray-400 hover:text-gray-600 font-bold leading-none px-1">&times;</button>
+                    </div>
+                    <p class="text-gray-500 mb-2">Click a command below or type it in <strong>Raw command</strong> (all powered by <a href="/llms.txt" target="_blank" rel="noopener" class="text-indigo-600 underline">/llms.txt</a>):</p>
+                    <ul class="space-y-1.5 font-mono text-[11px]">
+                        <li><button type="button" onclick="runHelpCommand('HELP COMMANDS')" class="text-indigo-600 hover:underline font-semibold">HELP COMMANDS</button> <span class="font-sans text-gray-600">— All pasteable terminal commands</span></li>
+                        <li><button type="button" onclick="runHelpCommand('HELP BUTTONS')" class="text-indigo-600 hover:underline font-semibold">HELP BUTTONS</button> <span class="font-sans text-gray-600">— How all buttons &amp; tabs work</span></li>
+                        <li><button type="button" onclick="runHelpCommand('HELP UF2')" class="text-indigo-600 hover:underline font-semibold">HELP UF2</button> <span class="font-sans text-gray-600">— .uf2 firmware &amp; BOOTSEL flashing</span></li>
+                        <li><button type="button" onclick="runHelpCommand('HELP AI')" class="text-indigo-600 hover:underline font-semibold">HELP AI</button> <span class="font-sans text-gray-600">— LLM recipe syntax (PROFILE|...)</span></li>
+                        <li><button type="button" onclick="runHelpCommand('HELP')" class="text-indigo-600 hover:underline font-semibold">HELP</button> <span class="font-sans text-gray-600">— Full reference manual</span></li>
+                        <li class="pt-1 border-t"><button type="button" onclick="runHelpCommand('EXPORT')" class="text-emerald-700 hover:underline font-semibold">EXPORT</button> <span class="font-sans text-gray-600">— Print current table as PROFILE|...</span></li>
+                    </ul>
+                </div>
             </div>
         </div>
     </div>
@@ -621,11 +644,11 @@
                     })
                     .then(text => {
                         const aside = document.getElementById('llm-documentation');
-                        if (aside) {
+                        if (aside && !document.getElementById('llm-full-reference')) {
                             const pre = document.createElement('pre');
                             pre.id = 'llm-full-reference';
                             pre.textContent = text;
-                            aside.replaceChildren(pre);
+                            aside.appendChild(pre);
                         }
                         return text;
                     })
@@ -635,6 +658,16 @@
                     });
             }
             return cachedDocsPromise;
+        }
+
+        function runHelpCommand(cmdString) {
+            const popup = document.getElementById('helpPopup');
+            if (popup) popup.classList.add('hidden');
+            const input = document.getElementById('txtRawCommand');
+            if (input) {
+                input.value = cmdString;
+                sendRawCommand();
+            }
         }
 
         function sendRawCommand() {
@@ -1084,6 +1117,21 @@
         // Prullenbak icoontje voor terminal
         document.getElementById('btnClearTerminal').addEventListener('click', () => {
             document.getElementById('txtTerminal').value = '';
+        });
+
+        // Help popup naast Clear terminal
+        const helpPopupEl = document.getElementById('helpPopup');
+        document.getElementById('btnHelpPopup').addEventListener('click', (e) => {
+            e.stopPropagation();
+            helpPopupEl.classList.toggle('hidden');
+        });
+        document.getElementById('btnCloseHelpPopup').addEventListener('click', () => {
+            helpPopupEl.classList.add('hidden');
+        });
+        document.addEventListener('click', (e) => {
+            if (!helpPopupEl.classList.contains('hidden') && !helpPopupEl.contains(e.target) && e.target.id !== 'btnHelpPopup') {
+                helpPopupEl.classList.add('hidden');
+            }
         });
 
         // Raw command veld: Send-knop of Enter in het tekstveld
@@ -1679,7 +1727,7 @@
         updateChart();
         checkUrlForProfile();
         getSingleSourceDocs();
-        logToTerminal('INFO', 'BioLights ready. Type HELP in the Raw command box below for commands, button guide, .uf2 firmware info, and AI recipe syntax.'); 
+        logToTerminal('INFO', 'BioLights ready. Click "Help" below the terminal (or type HELP) for commands, button guide, .uf2 firmware info, and AI recipe syntax.'); 
 		// --- NIEUW: PWA Service Worker Registratie ---
         // Controleer of de browser Service Workers ondersteunt
         if ('serviceWorker' in navigator) {
