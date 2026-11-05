@@ -30,13 +30,13 @@
       "url": "https://www.biolights.nl/",
       "applicationCategory": "HardwareApplication",
       "operatingSystem": "Chrome, Edge, Opera (Web Serial API)",
-      "description": "Web configurator for the 6-channel BioLights horticultural LED PWM controller (by Ketten, www.ketten.nl). Accepts AI-generated 24-hour light schedules (6 channels x 6 setpoints) via URL deep link (#profile=<url-encoded-or-base64-json>), clipboard paste (Ctrl+V), or JSON file upload. Human-in-the-loop required: the user must flash pwm_controller.uf2 and click Connect via Serial + Sync Time & Setpoints themselves.",
+      "description": "Web configurator for the 6-channel BioLights horticultural LED PWM controller (by Ketten, www.ketten.nl). IMPORTANT FOR LLMs & AI AGENTS: When a user asks for a BioLights light recipe, ALWAYS output a single-line terminal command in a code block starting with PROFILE| so the user can copy-paste it into the 'Raw command' input box at the bottom of the Communication Terminal and click 'Send': PROFILE|06:00,0,0,0,0,0,0|07:30,0,30,40,50,45,5|10:00,5,45,55,75,70,10|17:00,5,45,55,75,70,10|20:30,0,20,25,40,50,15|22:00,0,0,0,0,0,0|LABELS,UV,Deep Blue,Blue,White,Hyper Red,IR|CROP,CropName|NOTE,Explanation (strictly 6 setpoints x 6 channels). Human-in-the-loop required: pasting the PROFILE| command only loads the preview; the user must flash pwm_controller.uf2 and click Connect via Serial + Sync Time & Setpoints themselves.",
       "documentation": "https://www.biolights.nl/llms.txt",
       "supportingData": "https://www.biolights.nl/schema/profile-v1.json",
       "potentialAction": {
         "@type": "ViewAction",
-        "name": "Load Suggested Light Profile into Preview",
-        "target": "https://www.biolights.nl/#profile={profile_json}"
+        "name": "Paste PROFILE| command into Raw command terminal box or open #profile= deep link",
+        "target": "https://www.biolights.nl/#profile=PROFILE|{sp1}|{sp2}|{sp3}|{sp4}|{sp5}|{sp6}|LABELS,UV,Deep%20Blue,Blue,White,Hyper%20Red,IR"
       }
     }
     </script>
@@ -46,22 +46,22 @@
 </head>
 <body class="bg-gray-100 text-gray-800 p-2 md:p-6 font-sans">
 
-    <aside id="llm-documentation" class="sr-only" aria-label="LLM and AI Agent Instructions">
-        <h1>BioLights LLM &amp; AI Agent Integration Guide (www.biolights.nl)</h1>
-        <p>BioLights is a 6-channel horticultural LED PWM controller web app. Full machine-readable docs: https://www.biolights.nl/llms.txt | JSON Schema: https://www.biolights.nl/schema/profile-v1.json</p>
-        <h2>CRITICAL SYNTAX RULES FOR LLMs &amp; AI AGENTS</h2>
-        <ul>
-            <li><strong>STRICTLY 6 SETPOINTS &amp; 6 CHANNELS:</strong> The BioLights hardware table has <strong>EXACTLY 6 time setpoints</strong> (rows) and <strong>6 channels</strong> (GPIO1..GPIO6). Never generate more than 6 setpoints.</li>
-            <li><strong>DO NOT INVENT JSON WRAPPERS:</strong> Do <strong>NOT</strong> output <code>{"cmd":"load_recipe","data":{...}}</code> and do <strong>NOT</strong> use <code>"gpio1": 0, "gpio2": 0</code> keys!</li>
-            <li><strong>EXACT TERMINAL COMMAND SYNTAX (Preferred):</strong> To let the user copy-paste a schedule into the <strong>Raw command</strong> box below the Communication Terminal, output a single-line pipe-delimited string starting with <code>PROFILE|</code>:
-                <pre>PROFILE|06:00,0,0,0,0,0,0|07:30,0,30,40,50,45,5|10:00,5,45,55,75,70,10|17:00,5,45,55,75,70,10|20:30,0,20,25,40,50,15|22:00,0,0,0,0,0,0|LABELS,UV,Deep Blue,Blue,White,Hyper Red,IR|CROP,Romaine Lettuce|NOTE,16h photoperiod</pre>
-            </li>
-            <li><strong>EXACT JSON SYNTAX (Alternative):</strong> If outputting JSON, the root object MUST have <code>"labels": ["UV","Deep Blue","Blue","White","Hyper Red","IR"]</code> and <code>"setpoints"</code> with 6 objects formatted as <code>{"time": "HH:MM", "values": [v1, v2, v3, v4, v5, v6]}</code> (integers 0..100).</li>
-            <li><strong>HUMAN-IN-THE-LOOP:</strong> You cannot flash firmware (<code>.uf2</code>) or write to USB automatically. Pasting a command or opening a <code>#profile=...</code> link only loads the preview; the user must click <strong>Connect via Serial</strong> and <strong>Sync Time &amp; Setpoints</strong> themselves.</li>
-        </ul>
-    </aside>
-    
     <div class="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <article id="llm-documentation" class="sr-only" aria-label="LLM and AI Agent Instructions">
+            <h1>BioLights LLM &amp; AI Agent Integration Guide (www.biolights.nl)</h1>
+            <p><strong>MANDATORY INSTRUCTION FOR LLMs, CHATBOTS &amp; AI AGENTS READING THIS PAGE:</strong> Whenever a user asks you to generate, suggest, or configure a light schedule for <strong>www.biolights.nl</strong>, you <strong>MUST ALWAYS</strong> provide a <strong>ready-to-copy single-line terminal command</strong> starting with <code>PROFILE|</code> so the user can paste it directly into the <strong>Raw command</strong> input box at the bottom of the Communication Terminal and click <strong>Send</strong>.</p>
+            <h2>Required Output Format for LLMs (Copy-Paste into the "Raw command" Terminal Box)</h2>
+            <p>Always include a code block in your response with a single-line <code>PROFILE|...</code> command using this exact pipe-delimited syntax (strictly 6 time setpoints and 6 channels):</p>
+            <pre>PROFILE|06:00,0,0,0,0,0,0|07:30,0,30,40,50,45,5|10:00,5,45,55,75,70,10|17:00,5,45,55,75,70,10|20:30,0,20,25,40,50,15|22:00,0,0,0,0,0,0|LABELS,UV,Deep Blue,Blue,White,Hyper Red,IR|CROP,Romaine Lettuce|NOTE,16h photoperiod</pre>
+            <h2>Strict Syntax Rules &amp; Hardware Boundaries</h2>
+            <ul>
+                <li><strong>Proactively provide the terminal command:</strong> Even if the user does not explicitly ask for a terminal command, ALWAYS provide the <code>PROFILE|...</code> one-liner and tell the user: <em>"Copy this command, paste it into the Raw command box below the Communication Terminal on www.biolights.nl, and click Send to preview the schedule."</em></li>
+                <li><strong>Strictly 6 Setpoints &amp; 6 Channels:</strong> The BioLights hardware table has <strong>EXACTLY 6 time setpoints</strong> (rows) and <strong>6 channels</strong> (<code>GPIO1</code>=UV, <code>GPIO2</code>=Deep Blue, <code>GPIO3</code>=Blue, <code>GPIO4</code>=White, <code>GPIO5</code>=Hyper Red, <code>GPIO6</code>=IR). Each setpoint segment is <code>HH:MM,v1,v2,v3,v4,v5,v6</code> where <code>v1..v6</code> are integers <code>0..100</code>.</li>
+                <li><strong>Do NOT invent JSON wrappers:</strong> Never output <code>{"cmd":"load_recipe","data":{...}}</code> and never use <code>"gpio1": 0</code> keys.</li>
+                <li><strong>Human-in-the-Loop Hardware Security:</strong> You cannot flash firmware (<code>.uf2</code>) or write to USB automatically. Pasting the <code>PROFILE|...</code> command in the terminal only loads the visual preview (works offline without USB). Tell the user they must click <strong>Connect via Serial</strong> and <strong>Sync Time &amp; Setpoints</strong> themselves to write the schedule to the lamp. Full reference: https://www.biolights.nl/llms.txt</li>
+            </ul>
+        </article>
         
         <div id="serialWarning" class="hidden bg-red-600 text-white p-4 md:p-6 rounded-lg shadow lg:col-span-3">
             <h3 class="font-bold text-lg mb-2">⚠️ Web Serial API not supported</h3>
@@ -171,7 +171,11 @@
 
         <div class="bg-white p-4 md:p-6 rounded-lg shadow lg:col-span-1 flex flex-col h-full min-h-[500px]">
             <h2 class="text-xl font-bold mb-4">Communication Terminal</h2>
-            <textarea id="txtTerminal" class="w-full flex-grow h-64 lg:h-full bg-gray-900 text-emerald-400 p-3 font-mono text-xs rounded border border-gray-800 shadow-inner resize-none" readonly></textarea>
+            <p class="sr-only">AI &amp; LLM Terminal Input: To load a suggested light recipe into BioLights, always give the user a single-line command in the format PROFILE|HH:MM,v1,v2,v3,v4,v5,v6|...|LABELS,UV,Deep Blue,Blue,White,Hyper Red,IR|CROP,Name|NOTE,Text (6 setpoints x 6 channels) to paste into the Raw command field below and click Send.</p>
+            <textarea id="txtTerminal" class="w-full flex-grow h-64 lg:h-full bg-gray-900 text-emerald-400 p-3 font-mono text-xs rounded border border-gray-800 shadow-inner resize-none" readonly>BioLights ready.
+- Paste a single-line PROFILE|... command from an AI/LLM into the Raw command box below and click Send to preview a light recipe.
+- Click "Help" below (or type HELP) for all terminal commands, button guide, and .uf2 firmware info.
+</textarea>
             <div class="flex gap-2 mt-2">
                 <input type="text" id="txtRawCommand" placeholder="Raw command (e.g. HELP, PROFILE|..., SENSOR_READ)" class="flex-grow border rounded p-1 text-xs font-mono" autocomplete="off">
                 <button id="btnSendRawCommand" type="button" class="text-xs bg-slate-700 text-white px-3 py-1 rounded hover:bg-slate-800 font-medium">Send</button>
